@@ -51,6 +51,10 @@ nav button.on{color:#fff;background:var(--card2)}
 .prod .body{padding:14px 20px 20px;flex:1;display:flex;flex-direction:column;gap:10px}
 .prod .spec{font-size:13px;color:var(--dim);line-height:1.7}
 .prod .spec b{color:var(--txt)}
+.prod .price{display:flex;align-items:baseline;gap:6px;padding:4px 0}
+.prod .price b{font-size:24px;font-weight:900;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.prod .price small{font-size:12px;color:var(--dim)}
+.prod .price .pref{margin-left:auto;font-size:10px;font-weight:700;color:var(--dim);border:1px solid var(--line);border-radius:10px;padding:2px 8px}
 .capline{font-size:12px;color:var(--dim);display:flex;justify-content:space-between}
 .capbar{height:8px;background:var(--bg2);border-radius:4px;overflow:hidden}
 .capbar i{display:block;height:100%;background:var(--grad);border-radius:4px;transition:.3s}
@@ -68,6 +72,9 @@ h2.sec::after{content:'';flex:1;height:1px;background:var(--line)}
 .modal{background:var(--bg2);border:1px solid var(--line);border-radius:18px;width:100%;max-width:640px;padding:26px}
 .modal h3{font-size:20px;margin-bottom:4px}
 .modal .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
+.pickprice{font-size:13px;color:var(--dim);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px;margin-bottom:14px}
+.pickprice b{color:var(--txt);font-size:15px}
+#pickTotal b{color:var(--txt);font-size:15px}
 .mrow{display:grid;grid-template-columns:110px 1fr 130px 90px;gap:10px;align-items:center;padding:8px 10px;border-radius:10px}
 .mrow:nth-child(odd){background:rgba(255,255,255,.03)}
 .mrow .mn{font-weight:700;font-size:14px}
@@ -166,6 +173,7 @@ footer{text-align:center;color:var(--dim);font-size:12px;padding:30px 0;border-t
     <h1>파운드리 캐파, 이제 <span class="g">쇼핑하듯 담으세요</span></h1>
     <p>2028년 1월부터 공정별 월 30,000 wafers — 원하는 공정과 월을 골라 바로 할당 요청하세요.</p>
     <div class="proto">⚡ PROTOTYPE — 요청 즉시 할당이 반영됩니다 (담당자 메일 발송은 시뮬레이션)</div>
+    <div style="margin-top:10px;font-size:12px;color:var(--dim)">made by <b style="color:var(--txt)">Claude × 알파남</b></div>
   </div>
   <div class="grid" id="prodGrid"></div>
 </section>
@@ -208,9 +216,11 @@ footer{text-align:center;color:var(--dim);font-size:12px;padding:30px 0;border-t
   <div class="modal">
     <h3 id="pickTitle"></h3>
     <div class="sub">월별로 필요한 수량(wafers)을 입력하세요. 잔여 캐파를 초과할 수 없습니다.</div>
+    <div class="pickprice" id="pickPrice"></div>
     <div class="mhead"><span>월</span><span>잔여 캐파</span><span style="text-align:right">요청 수량</span><span></span></div>
     <div id="pickRows"></div>
-    <div class="mact">
+    <div class="mact" style="align-items:center">
+      <span id="pickTotal" style="margin-right:auto;font-size:13px;color:var(--dim)"></span>
       <button class="btn ghost" onclick="closePick()">취소</button>
       <button class="btn pri" onclick="addToCart()">🛒 장바구니 담기</button>
     </div>
@@ -232,16 +242,22 @@ footer{text-align:center;color:var(--dim);font-size:12px;padding:30px 0;border-t
 
 <div class="toast" id="toast"></div>
 
-<footer>WaferBay — Show me the Wafer! · Foundry Capacity Allocation Prototype · 데이터는 이 브라우저(localStorage)에만 저장됩니다</footer>
+<footer>
+  <div style="font-size:14px;font-weight:700;color:var(--txt);margin-bottom:6px">🤖 제작 : <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">Claude × 알파남</span></div>
+  WaferBay — Show me the Wafer! · Foundry Capacity Allocation Prototype<br>
+  웨이퍼 단가는 언론 보도 기반 TSMC N2/N4/N5/N6 시장 추정가이며 실제 계약가와 다를 수 있습니다 · 데이터는 이 브라우저(localStorage)에만 저장됩니다
+</footer>
 
 <script>
 /* ═══════════ data ═══════════ */
 const NODES = [
-  {id:'2nm', label:'2nm', sub:'GAA', desc:'최첨단 GAA 공정 · HPC / AI 가속기 · 플래그십 모바일 AP', chip:'ULTRA', chipC:'#f87171'},
-  {id:'4nm', label:'4nm', sub:'FinFET', desc:'검증된 선단 공정 · 모바일 AP · 네트워크 프로세서', chip:'ADVANCED', chipC:'#fbbf24'},
-  {id:'5nm', label:'5nm', sub:'FinFET', desc:'가성비 선단 공정 · AP · GPU · 오토모티브 SoC', chip:'PROVEN', chipC:'#38bdf8'},
-  {id:'8nm', label:'8nm', sub:'FinFET', desc:'성숙 공정 · 이미지센서 로직 · DDI · 전장 반도체', chip:'MATURE', chipC:'#34d399'},
+  {id:'2nm', label:'2nm', sub:'GAA', desc:'최첨단 GAA 공정 · HPC / AI 가속기 · 플래그십 모바일 AP', chip:'ULTRA', chipC:'#f87171', price:30000, ref:'TSMC N2'},
+  {id:'4nm', label:'4nm', sub:'FinFET', desc:'검증된 선단 공정 · 모바일 AP · 네트워크 프로세서', chip:'ADVANCED', chipC:'#fbbf24', price:18000, ref:'TSMC N4'},
+  {id:'5nm', label:'5nm', sub:'FinFET', desc:'가성비 선단 공정 · AP · GPU · 오토모티브 SoC', chip:'PROVEN', chipC:'#38bdf8', price:17000, ref:'TSMC N5'},
+  {id:'8nm', label:'8nm', sub:'FinFET', desc:'성숙 공정 · 이미지센서 로직 · DDI · 전장 반도체', chip:'MATURE', chipC:'#34d399', price:10000, ref:'TSMC N6'},
 ];
+function nodeOf(id){ return NODES.find(n=>n.id===id); }
+function usd(n){ return '$'+n.toLocaleString('en-US'); }
 const CAP = 30000;                       // monthly capacity per node (wafers)
 const MONTHS = [];                       // 2028-01 .. 2028-12
 for(let m=1;m<=12;m++) MONTHS.push('2028-'+String(m).padStart(2,'0'));
@@ -288,6 +304,7 @@ function renderStore(){
       </div>
       <div class="body">
         <div class="spec">${n.desc}</div>
+        <div class="price"><b>${usd(n.price)}</b><small> / wafer</small><span class="pref">${n.ref} 상당</span></div>
         <div class="spec">월 생산능력 <b>${fmt(CAP)} wafers</b><br>공급 기간 <b>2028.01 ~ 2028.12</b></div>
         <div class="capline"><span>연간 잔여 캐파</span><span><b style="color:var(--txt)">${fmt(rem)}</b> / ${fmt(tot)} (${pct}%)</span></div>
         <div class="capbar"><i style="width:${pct}%"></i></div>
@@ -302,17 +319,26 @@ function openPick(nodeId){
   pickNode = nodeId;
   const n = NODES.find(x=>x.id===nodeId);
   document.getElementById('pickTitle').textContent = `${n.label} ${n.sub} — 월별 수량 선택`;
+  document.getElementById('pickPrice').innerHTML = `단가 <b>${usd(n.price)}</b> / wafer <span style="opacity:.7">(${n.ref} 상당)</span>`;
   document.getElementById('pickRows').innerHTML = MONTHS.map(m=>{
     const rem = remaining(nodeId,m) - inCart(nodeId,m);
     const cls = rem<=0?'none':(rem<CAP*0.2?'low':'');
     return `<div class="mrow">
       <span class="mn">${mLabel(m)}</span>
       <span class="rm"><b class="${cls}">${fmt(Math.max(rem,0))}</b> wafers</span>
-      <input type="number" min="0" max="${rem}" step="100" placeholder="0" data-month="${m}" ${rem<=0?'disabled':''}>
+      <input type="number" min="0" max="${rem}" step="100" placeholder="0" data-month="${m}" oninput="pickSum()" ${rem<=0?'disabled':''}>
       <span class="unit">wafers</span>
     </div>`;
   }).join('');
+  pickSum();
   document.getElementById('pickOverlay').classList.add('show');
+}
+function pickSum(){
+  const n = nodeOf(pickNode);
+  let q = 0;
+  document.querySelectorAll('#pickRows input').forEach(i=>{ q += parseInt(i.value)||0; });
+  document.getElementById('pickTotal').innerHTML = q>0
+    ? `${fmt(q)} wafers · 예상 금액 <b>${usd(q*n.price)}</b>` : '수량을 입력하세요';
 }
 function closePick(){ document.getElementById('pickOverlay').classList.remove('show'); }
 function addToCart(){
@@ -340,15 +366,16 @@ function renderCart(){
   const area = document.getElementById('cartArea');
   if(!cart.length){ area.innerHTML = '<div class="cartbox"><div class="empty">장바구니가 비어 있습니다.<br><br><button class="btn pri" onclick="go(\'store\')">스토어로 가기</button></div></div>'; return; }
   const total = cart.reduce((s,c)=>s+c.qty,0);
+  const amount = cart.reduce((s,c)=>s+c.qty*nodeOf(c.node).price,0);
   area.innerHTML = `
   <div class="cartbox">
     ${cart.map((c,i)=>`<div class="citem">
       <span class="nb">${c.node}</span>
-      <span class="det"><b>${mLabel(c.month)}</b><br>${NODES.find(n=>n.id===c.node).sub} 공정</span>
-      <span class="qty">${fmt(c.qty)} <small style="color:var(--dim);font-size:12px">wafers</small></span>
+      <span class="det"><b>${mLabel(c.month)}</b><br>${nodeOf(c.node).sub} 공정 · 단가 ${usd(nodeOf(c.node).price)}</span>
+      <span class="qty">${fmt(c.qty)} <small style="color:var(--dim);font-size:12px">wafers</small><br><small style="color:var(--accent2);font-size:13px;font-weight:700">${usd(c.qty*nodeOf(c.node).price)}</small></span>
       <button class="rm" onclick="cart.splice(${i},1);updateBadge();renderCart()">✕</button>
     </div>`).join('')}
-    <div class="total"><span>총 요청 수량</span><b>${fmt(total)} wafers</b></div>
+    <div class="total"><span>총 요청 수량 <b style="font-size:16px;color:var(--txt);-webkit-text-fill-color:var(--txt)">${fmt(total)} wafers</b></span><span style="text-align:right">총 금액<br><b>${usd(amount)}</b></span></div>
   </div>
   <div class="cartbox">
     <h3 style="margin-bottom:4px">📮 할당 요청 정보</h3>
@@ -375,15 +402,16 @@ function submitOrder(){
   }
   const ts = Date.now();
   const oid = 'WB-'+new Date(ts).toISOString().slice(2,10).replace(/-/g,'')+'-'+String(Math.floor(Math.random()*9000)+1000);
-  cart.forEach(c=> db.allocs.push({id:oid, company, contact, email, memo, node:c.node, month:c.month, qty:c.qty, ts}));
+  cart.forEach(c=> db.allocs.push({id:oid, company, contact, email, memo, node:c.node, month:c.month, qty:c.qty, price:nodeOf(c.node).price, ts}));
   save();
   localStorage.setItem(LS+'_cust', JSON.stringify({company,contact,email}));
   // mail preview
-  const lines = cart.map(c=>`&nbsp;&nbsp;· ${c.node} / ${mLabel(c.month)} / ${fmt(c.qty)} wafers`).join('<br>');
+  const lines = cart.map(c=>`&nbsp;&nbsp;· ${c.node} / ${mLabel(c.month)} / ${fmt(c.qty)} wafers × ${usd(nodeOf(c.node).price)} = <b>${usd(c.qty*nodeOf(c.node).price)}</b>`).join('<br>');
   const total = cart.reduce((s,c)=>s+c.qty,0);
+  const amount = cart.reduce((s,c)=>s+c.qty*nodeOf(c.node).price,0);
   document.getElementById('mailPreview').innerHTML =
     `<b>To:</b> ${SALES_EMAIL}<br><b>Subject:</b> [WaferBay] 신규 캐파 할당 — ${company} (${oid})<br><hr style="border-color:var(--line);margin:8px 0">`+
-    `<b>${company}</b> ${contact}님(${email})의 할당 요청이 확정되었습니다.<br>${lines}<br><b>합계: ${fmt(total)} wafers</b>${memo?'<br>메모: '+memo:''}`;
+    `<b>${company}</b> ${contact}님(${email})의 할당 요청이 확정되었습니다.<br>${lines}<br><b>합계: ${fmt(total)} wafers · ${usd(amount)}</b>${memo?'<br>메모: '+memo:''}`;
   cart = []; updateBadge();
   document.getElementById('doneOverlay').classList.add('show');
 }
@@ -401,16 +429,18 @@ function renderMy(){
   const rows = db.allocs.filter(a=> a.company.toLowerCase().includes(q) || a.email.toLowerCase().includes(q));
   if(!rows.length){ area.innerHTML = '<div class="empty">할당 내역이 없습니다.</div>'; return; }
   const total = rows.reduce((s,a)=>s+a.qty,0);
-  area.innerHTML = `<table><tr><th>주문번호</th><th>공정</th><th>월</th><th>수량(wafers)</th><th>상태</th><th>요청일</th></tr>
+  const amount = rows.reduce((s,a)=>s+a.qty*(a.price||nodeOf(a.node).price),0);
+  area.innerHTML = `<table><tr><th>주문번호</th><th>공정</th><th>월</th><th>수량(wafers)</th><th>금액</th><th>상태</th><th>요청일</th></tr>
     ${rows.sort((a,b)=>b.ts-a.ts||a.month.localeCompare(b.month)).map(a=>`<tr>
       <td style="color:var(--dim)">${a.id}</td>
       <td class="nodechip">${a.node}</td>
       <td>${mLabel(a.month)}</td>
       <td><b>${fmt(a.qty)}</b></td>
+      <td style="color:var(--accent2);font-weight:700">${usd(a.qty*(a.price||nodeOf(a.node).price))}</td>
       <td><span class="pill ok">확정</span></td>
       <td style="color:var(--dim)">${new Date(a.ts).toLocaleDateString('ko-KR')}</td>
     </tr>`).join('')}
-    <tr><td colspan="3" style="font-weight:800">합계</td><td colspan="3"><b style="font-size:16px">${fmt(total)} wafers</b></td></tr></table>`;
+    <tr><td colspan="3" style="font-weight:800">합계</td><td colspan="4"><b style="font-size:16px">${fmt(total)} wafers · <span style="color:var(--accent2)">${usd(amount)}</span></b></td></tr></table>`;
 }
 
 /* ═══════════ admin ═══════════ */
@@ -423,11 +453,13 @@ function heatColor(pct){ // pct = remaining ratio
 function renderAdmin(){
   const totalCap = CAP*MONTHS.length*NODES.length;
   const totalAlloc = db.allocs.reduce((s,a)=>s+a.qty,0);
+  const totalAmt = db.allocs.reduce((s,a)=>s+a.qty*(a.price||nodeOf(a.node).price),0);
   const custs = new Set(db.allocs.map(a=>a.company)).size;
   const orders = new Set(db.allocs.map(a=>a.id)).size;
   document.getElementById('kpiArea').innerHTML = `
     <div class="kpi"><div class="l">총 캐파 (2028년)</div><div class="v">${fmt(totalCap)} <small>wafers</small></div></div>
     <div class="kpi"><div class="l">할당 완료</div><div class="v" style="color:var(--accent2)">${fmt(totalAlloc)} <small>wafers (${(totalAlloc/totalCap*100).toFixed(1)}%)</small></div></div>
+    <div class="kpi"><div class="l">확정 매출액</div><div class="v" style="color:var(--ok)">${usd(totalAmt)}</div></div>
     <div class="kpi"><div class="l">고객사</div><div class="v">${custs} <small>개사</small></div></div>
     <div class="kpi"><div class="l">할당 요청 건수</div><div class="v">${orders} <small>건</small></div></div>`;
   // heatmap
@@ -442,12 +474,13 @@ function renderAdmin(){
   // list
   const list = document.getElementById('adminList');
   if(!db.allocs.length){ list.innerHTML = '<div class="empty">아직 할당 요청이 없습니다.</div>'; return; }
-  list.innerHTML = `<table><tr><th>주문번호</th><th>고객사</th><th>담당자</th><th>공정</th><th>월</th><th>수량</th><th>요청일</th></tr>
+  list.innerHTML = `<table><tr><th>주문번호</th><th>고객사</th><th>담당자</th><th>공정</th><th>월</th><th>수량</th><th>금액</th><th>요청일</th></tr>
     ${[...db.allocs].sort((a,b)=>b.ts-a.ts||a.month.localeCompare(b.month)).map(a=>`<tr>
       <td style="color:var(--dim)">${a.id}</td><td><b>${a.company}</b></td>
       <td style="color:var(--dim)">${a.contact}<br><span style="font-size:11px">${a.email}</span></td>
       <td class="nodechip">${a.node}</td><td>${mLabel(a.month)}</td>
       <td><b>${fmt(a.qty)}</b></td>
+      <td style="color:var(--accent2);font-weight:700">${usd(a.qty*(a.price||nodeOf(a.node).price))}</td>
       <td style="color:var(--dim)">${new Date(a.ts).toLocaleString('ko-KR')}</td>
     </tr>`).join('')}</table>`;
 }
