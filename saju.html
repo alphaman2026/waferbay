@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사주팔자 만세력 — 四柱八字</title>
+<style>
+  :root {
+    --bg: #f5f1e8;
+    --paper: #fffdf7;
+    --ink: #2b2420;
+    --ink-soft: #6b5d52;
+    --accent: #8b1e1e;
+    --line: #d9cfbe;
+    --wood: #2e7d32;
+    --fire: #c62828;
+    --earth: #a67c00;
+    --metal: #667080;
+    --water: #1a3a6b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Noto Serif KR", "Nanum Myeongjo", "Apple SD Gothic Neo", serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  header { text-align: center; padding: 32px 0 24px; border-bottom: 3px double var(--accent); margin-bottom: 28px; }
+  header h1 { font-size: 2rem; letter-spacing: 0.35em; text-indent: 0.35em; color: var(--accent); }
+  header .hanja { font-size: 1rem; color: var(--ink-soft); letter-spacing: 0.6em; text-indent: 0.6em; margin-top: 4px; }
+  header p.sub { margin-top: 10px; font-size: 0.9rem; color: var(--ink-soft); }
+
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 22px;
+    box-shadow: 0 2px 8px rgba(80,60,30,0.06);
+  }
+  .card h2 {
+    font-size: 1.05rem; color: var(--accent);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px; margin-bottom: 14px;
+    letter-spacing: 0.15em;
+  }
+
+  form .row { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; align-items: flex-end; }
+  label.fld { display: flex; flex-direction: column; font-size: 0.82rem; color: var(--ink-soft); gap: 4px; }
+  input[type=date], input[type=time], select {
+    font: inherit; font-size: 1rem;
+    padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; color: var(--ink);
+  }
+  .opts { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.86rem; color: var(--ink-soft); margin-bottom: 16px; }
+  .opts label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  button.go {
+    font: inherit; font-size: 1.05rem; letter-spacing: 0.3em; text-indent: 0.3em;
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 12px 34px; cursor: pointer; display: block; margin: 0 auto;
+  }
+  button.go:hover { background: #a52a2a; }
+
+  #result { display: none; }
+
+  .summary-line { text-align: center; font-size: 0.95rem; color: var(--ink-soft); margin-bottom: 16px; }
+  .summary-line b { color: var(--ink); }
+
+  .pillars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .pillar { text-align: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+  .pillar .pname { background: #efe8d8; font-size: 0.8rem; padding: 5px 0; color: var(--ink-soft); letter-spacing: 0.2em; }
+  .glyph { padding: 10px 4px 8px; }
+  .glyph .hanja { font-size: 2.1rem; font-weight: 700; line-height: 1.15; }
+  .glyph .kor { font-size: 0.85rem; color: var(--ink-soft); }
+  .glyph .sibseong { font-size: 0.74rem; margin-top: 3px; color: #fff; display: inline-block; padding: 1px 8px; border-radius: 10px; background: var(--ink-soft); }
+  .glyph + .glyph { border-top: 1px dashed var(--line); }
+  .jjg { font-size: 0.72rem; color: var(--ink-soft); padding: 4px 0 8px; border-top: 1px dotted var(--line); }
+  .e-wood  { color: var(--wood); }
+  .e-fire  { color: var(--fire); }
+  .e-earth { color: var(--earth); }
+  .e-metal { color: var(--metal); }
+  .e-water { color: var(--water); }
+
+  .ohaeng-bars { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; text-align: center; }
+  .ohaeng-bars .ob .barbox { height: 110px; display: flex; align-items: flex-end; justify-content: center; }
+  .ohaeng-bars .ob .bar { width: 34px; border-radius: 4px 4px 0 0; min-height: 4px; transition: height .4s; }
+  .ohaeng-bars .ob .lbl { font-size: 0.85rem; margin-top: 6px; }
+  .ohaeng-bars .ob .cnt { font-size: 0.8rem; color: var(--ink-soft); }
+  .b-wood  { background: var(--wood); }
+  .b-fire  { background: var(--fire); }
+  .b-earth { background: var(--earth); }
+  .b-metal { background: var(--metal); }
+  .b-water { background: var(--water); }
+
+  .daeun-scroll { overflow-x: auto; }
+  table.daeun { border-collapse: collapse; margin: 0 auto; }
+  table.daeun th, table.daeun td { border: 1px solid var(--line); padding: 6px 10px; text-align: center; font-size: 0.9rem; white-space: nowrap; }
+  table.daeun th { background: #efe8d8; font-weight: 600; color: var(--ink-soft); font-size: 0.8rem; }
+  table.daeun td .h { font-size: 1.25rem; font-weight: 700; }
+  table.daeun td .s { font-size: 0.7rem; color: var(--ink-soft); }
+
+  .interp p { margin-bottom: 10px; font-size: 0.95rem; }
+  .interp .ilgan-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 6px; }
+
+  .note { font-size: 0.8rem; color: var(--ink-soft); background: #f4eede; border-radius: 8px; padding: 12px 14px; line-height: 1.7; }
+  .note b { color: var(--accent); }
+
+  details.how { font-size: 0.88rem; color: var(--ink-soft); }
+  details.how summary { cursor: pointer; color: var(--accent); font-weight: 600; margin-bottom: 8px; }
+  details.how li { margin: 6px 0 6px 18px; }
+
+  footer { text-align: center; font-size: 0.78rem; color: var(--ink-soft); margin-top: 30px; }
+
+  @media (max-width: 560px) {
+    .glyph .hanja { font-size: 1.6rem; }
+    header h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>사주팔자</h1>
+    <div class="hanja">四 柱 八 字</div>
+    <p class="sub">생년월일시로 여덟 글자를 세우고, 오행과 대운의 흐름을 읽습니다</p>
+  </header>
+
+  <section class="card">
+    <h2>출생 정보 입력</h2>
+    <form id="sajuForm">
+      <div class="row">
+        <label class="fld">생년월일 (양력)
+          <input type="date" id="birthDate" required min="1900-01-01" max="2099-12-31" value="1990-03-15">
+        </label>
+        <label class="fld">출생 시각
+          <input type="time" id="birthTime" value="12:00">
+        </label>
+        <label class="fld">성별
+          <select id="gender">
+            <option value="M">남자</option>
+            <option value="F">여자</option>
+          </select>
+        </label>
+      </div>
+      <div class="opts">
+        <label><input type="checkbox" id="unknownTime"> 출생 시각 모름 (시주 생략)</label>
+        <label><input type="checkbox" id="solarCorrection" checked> 한국 진태양시 보정 (−30분)</label>
+      </div>
+      <button type="submit" class="go">사주 보기</button>
+    </form>
+  </section>
+
+  <div id="result">
+    <section class="card">
+      <h2>사주 원국 (四柱 原局)</h2>
+      <p class="summary-line" id="summaryLine"></p>
+      <div class="pillars" id="pillarsBox"></div>
+    </section>
+
+    <section class="card">
+      <h2>오행 분포 (五行 分布)</h2>
+      <div class="ohaeng-bars" id="ohaengBox"></div>
+      <p class="interp" id="ohaengComment" style="margin-top:14px; font-size:0.92rem;"></p>
+    </section>
+
+    <section class="card">
+      <h2>대운 (大運)</h2>
+      <p class="summary-line" id="daeunInfo"></p>
+      <div class="daeun-scroll"><table class="daeun" id="daeunTable"></table></div>
+    </section>
+
+    <section class="card interp">
+      <h2>일간 풀이 (日干)</h2>
+      <div id="ilganBox"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <details class="how">
+      <summary>이 프로그램의 작동 방식 (API? 데이터베이스?)</summary>
+      <p>이 만세력은 <b>외부 API도, 미리 저장된 만세력 데이터베이스도 사용하지 않습니다.</b>
+      사주는 천문학적으로 결정되는 계산이기 때문에, 브라우저 안에서 자바스크립트로 전부 직접 계산합니다.</p>
+      <ul>
+        <li><b>일주(日柱)</b> — 율리우스 적일(Julian Day Number)을 60으로 나눈 나머지로 60갑자를 구합니다. 기준점: 1900-01-01 = 갑술일.</li>
+        <li><b>절기(節氣)</b> — 태양의 황경(黃經)을 천문 알고리즘(Meeus 근사식, 오차 약 ±0.01° ≈ 15분)으로 계산해 입춘·경칩 등 12절(節)의 정확한 시각을 구합니다.</li>
+        <li><b>년주(年柱)</b> — 입춘(황경 315°) 시각을 기준으로 해가 바뀝니다. 1월생·입춘 전 2월생은 전년도 간지를 씁니다.</li>
+        <li><b>월주(月柱)</b> — 출생 순간 태양 황경으로 절기 월을 정하고, 오호둔(五虎遁) 공식으로 월간을 세웁니다.</li>
+        <li><b>시주(時柱)</b> — 자시(23시~01시) 기준 12지지로 나누고, 오서둔(五鼠遁) 공식으로 시간(時干)을 세웁니다. 23시 이후 출생은 다음 날 일주를 적용합니다.</li>
+        <li><b>대운(大運)</b> — 양남음녀 순행 / 음남양녀 역행. 출생일부터 다음(또는 이전) 절입일까지의 일수를 3으로 나눠 대운수를 구합니다.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section class="note">
+    <b>참고:</b> 이 결과는 참고·재미용입니다. ① 음력 생일은 양력으로 변환해 입력해 주세요(음력 변환은 한국천문연구원 KASI 기준이 정확합니다).
+    ② 절기 시각은 근사 계산으로 실제와 몇 분 차이가 날 수 있어, 절입 시각 직전·직후 출생자는 월주가 달라질 수 있습니다.
+    ③ 1948~1960년, 1987~1988년 서머타임 기간 출생자는 시계 시각에서 1시간을 빼고 입력하세요.
+    ④ 진태양시 보정(−30분)은 한국 표준시(동경 135°)와 한반도 실제 경도(약 127.5°)의 차이를 반영하는 관행적 옵션입니다.
+  </section>
+
+  <footer>四柱八字 萬歲曆 · 순수 계산 방식 (No API · No DB)</footer>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================
+   사주팔자 계산 엔진 — 순수 천문 계산 (외부 API/DB 없음)
+   ========================================================== */
+
+const STEMS_KO = ["갑","을","병","정","무","기","경","신","임","계"];
+const STEMS_HJ = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
+const BRANCHES_KO = ["자","축","인","묘","진","사","오","미","신","유","술","해"];
+const BRANCHES_HJ = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+const BRANCH_ANIMAL = ["쥐","소","호랑이","토끼","용","뱀","말","양","원숭이","닭","개","돼지"];
+
+const ELEM_NAMES = ["목","화","토","금","수"];
+const ELEM_HJ = ["木","火","土","金","水"];
+const ELEM_CLASS = ["wood","fire","earth","metal","water"];
+
+// 천간 오행: 갑을=목 병정=화 무기=토 경신=금 임계=수
+const stemElem = s => Math.floor(s / 2);
+// 천간 음양: 짝수 인덱스=양
+const stemYang = s => s % 2 === 0;
+// 지지 오행
+const BRANCH_ELEM = [4,2,0,0,2,1,1,2,3,3,2,4]; // 자축인묘진사오미신유술해
+// 지지 음양 (체용 기준: 자인진오신술=양)
+const BRANCH_YANG = [true,false,true,false,true,false,true,false,true,false,true,false];
+// 지장간 (여기·중기·정기), 마지막이 정기(본기)
+const JIJANGGAN = [
+  [9],        // 자: 계
+  [9,7,5],    // 축: 계신기
+  [4,2,0],    // 인: 무병갑
+  [1],        // 묘: 을
+  [1,9,4],    // 진: 을계무
+  [4,6,2],    // 사: 무경병
+  [2,5,3],    // 오: 병기정
+  [3,1,5],    // 미: 정을기
+  [4,8,6],    // 신: 무임경
+  [7],        // 유: 신
+  [7,3,4],    // 술: 신정무
+  [4,0,8]     // 해: 무갑임
+];
+
+/* ---------- 천문 계산: 율리우스일 & 태양 황경 ---------- */
+
+// 그레고리력 (UTC) → 율리우스일
+function toJD(y, m, d, hh, mm) {
+  if (m <= 2) { y -= 1; m += 12; }
+  const a = Math.floor(y / 100);
+  const b = 2 - a + Math.floor(a / 4);
+  const frac = (hh + mm / 60) / 24;
+  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + b - 1524.5 + frac;
+}
+
+// KST(UTC+9) 날짜·시각 → 율리우스일
+function kstToJD(y, m, d, hh, mm) {
+  return toJD(y, m, d, hh, mm) - 9 / 24;
+}
+
+const D2R = Math.PI / 180;
+
+// 태양의 겉보기 황경 (도, 0~360) — Meeus, Astronomical Algorithms 25장 (저정밀, ±0.01°)
+function sunLongitude(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
+  const M = 357.52911 + 35999.05029 * T - 0.0001537 * T * T;
+  const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(M * D2R)
+          + (0.019993 - 0.000101 * T) * Math.sin(2 * M * D2R)
+          + 0.000289 * Math.sin(3 * M * D2R);
+  const omega = 125.04 - 1934.136 * T;
+  let lambda = L0 + C - 0.00569 - 0.00478 * Math.sin(omega * D2R);
+  lambda %= 360;
+  if (lambda < 0) lambda += 360;
+  return lambda;
+}
+
+// 각도차를 (-180, 180]로 정규화
+function angleDiff(a, b) {
+  let d = (a - b) % 360;
+  if (d <= -180) d += 360;
+  if (d > 180) d -= 360;
+  return d;
+}
+
+// [jdLo, jdHi] 구간에서 태양 황경이 targetLon을 지나는 시각(JD) — 이분 탐색
+function findCrossing(jdLo, jdHi, targetLon) {
+  for (let i = 0; i < 60; i++) {
+    const mid = (jdLo + jdHi) / 2;
+    if (angleDiff(sunLongitude(mid), targetLon) < 0) jdLo = mid;
+    else jdHi = mid;
+  }
+  return (jdLo + jdHi) / 2;
+}
+
+// 해당 연도의 입춘(황경 315°) 시각 (JD)
+function ipchunJD(year) {
+  return findCrossing(kstToJD(year, 1, 30, 0, 0), kstToJD(year, 2, 9, 0, 0), 315);
+}
+
+// 출생 시각(JD) 기준 직전/직후 절입 시각 — 12절(節)만 (황경 315°부터 30° 간격)
+function adjacentTerms(jdBirth) {
+  const lon = sunLongitude(jdBirth);
+  const idx = Math.floor((((lon - 315) % 360) + 360) / 30) % 12; // 0=인월
+  const prevLon = (315 + idx * 30) % 360;
+  const nextLon = (315 + (idx + 1) * 30) % 360;
+  return {
+    monthIndex: idx,
+    prevJD: findCrossing(jdBirth - 35, jdBirth, prevLon),
+    nextJD: findCrossing(jdBirth, jdBirth + 35, nextLon)
+  };
+}
+
+/* ---------- 사주 기둥 계산 ---------- */
+
+// 60갑자 인덱스 → {stem, branch}
+const ganji = n => ({ stem: ((n % 10) + 10) % 10, branch: ((n % 12) + 12) % 12 });
+// stem/branch → 60갑자 인덱스
+function ganjiIndex(stem, branch) {
+  for (let n = 0; n < 60; n++) if (n % 10 === stem && n % 12 === branch) return n;
+  return -1;
+}
+
+// 일주: 1900-01-01 = 갑술일(60갑자 10번) 기준
+function dayPillarFromYMD(y, m, d) {
+  const jdn = Math.floor(toJD(y, m, d, 12, 0) + 0.5); // 정오 기준 JDN
+  const jdn1900 = 2415021; // 1900-01-01
+  return ganji(((jdn - jdn1900 + 10) % 60 + 60) % 60);
+}
+
+function calcSaju(y, m, d, hh, mm, opts) {
+  const { timeUnknown, solarCorr, gender } = opts;
+
+  // 시주·일주 경계용 유효 시각 (진태양시 보정)
+  let eff = new Date(Date.UTC(y, m - 1, d, hh, mm));
+  if (solarCorr && !timeUnknown) eff = new Date(eff.getTime() - 30 * 60000);
+  const ey = eff.getUTCFullYear(), em = eff.getUTCMonth() + 1, ed = eff.getUTCDate();
+  const ehh = eff.getUTCHours(), emm = eff.getUTCMinutes();
+
+  // 년주·월주·대운은 실제 출생 순간(KST 절대 시각) 기준
+  const jdBirth = kstToJD(y, m, d, timeUnknown ? 12 : hh, timeUnknown ? 0 : mm);
+
+  // ── 년주: 입춘 기준
+  let sajuYear = y;
+  if (jdBirth < ipchunJD(y)) sajuYear = y - 1;
+  const yearP = { stem: ((sajuYear - 4) % 10 + 10) % 10, branch: ((sajuYear - 4) % 12 + 12) % 12 };
+
+  // ── 월주: 태양 황경으로 절기 월 결정 + 오호둔
+  const terms = adjacentTerms(jdBirth);
+  const mIdx = terms.monthIndex;                         // 0=인월
+  const monthBranch = (mIdx + 2) % 12;                   // 인=2
+  const monthStem = ((yearP.stem % 5) * 2 + 2 + mIdx) % 10;
+  const monthP = { stem: monthStem, branch: monthBranch };
+
+  // ── 일주: 23시(보정 시 23시 기준) 이후는 다음 날 간지
+  let dy = ey, dm = em, dd = ed;
+  if (!timeUnknown && ehh >= 23) {
+    const next = new Date(Date.UTC(ey, em - 1, ed + 1));
+    dy = next.getUTCFullYear(); dm = next.getUTCMonth() + 1; dd = next.getUTCDate();
+  }
+  const dayP = dayPillarFromYMD(dy, dm, dd);
+
+  // ── 시주: 오서둔
+  let hourP = null;
+  if (!timeUnknown) {
+    const minutes = ehh * 60 + emm;
+    const hourBranch = Math.floor(((minutes + 60) % 1440) / 120);
+    const hourStem = ((dayP.stem % 5) * 2 + hourBranch) % 10;
+    hourP = { stem: hourStem, branch: hourBranch };
+  }
+
+  // ── 대운: 양남음녀 순행, 음남양녀 역행
+  const yangYear = stemYang(yearP.stem);
+  const forward = (gender === "M") === yangYear;
+  const gapDays = forward ? terms.nextJD - jdBirth : jdBirth - terms.prevJD;
+  let daeunsu = Math.round(gapDays / 3);
+  daeunsu = Math.min(10, Math.max(1, daeunsu));
+  const monthGZ = ganjiIndex(monthP.stem, monthP.branch);
+  const daeun = [];
+  for (let k = 1; k <= 8; k++) {
+    const idx = ((monthGZ + (forward ? k : -k)) % 60 + 60) % 60;
+    daeun.push({ age: daeunsu + (k - 1) * 10, ...ganji(idx) });
+  }
+
+  return { yearP, monthP, dayP, hourP, sajuYear, daeun, daeunsu, forward };
+}
+
+/* ---------- 십성 (十星) ---------- */
+
+const SIBSEONG = [["비견","겁재"],["식신","상관"],["편재","정재"],["편관","정관"],["편인","정인"]];
+
+function sibseongOfStem(dayStem, otherStem) {
+  const rel = ((stemElem(otherStem) - stemElem(dayStem)) % 5 + 5) % 5;
+  const same = stemYang(dayStem) === stemYang(otherStem);
+  return SIBSEONG[rel][same ? 0 : 1];
+}
+// 지지 십성: 정기(본기) 지장간 기준
+function sibseongOfBranch(dayStem, branch) {
+  const main = JIJANGGAN[branch][JIJANGGAN[branch].length - 1];
+  return sibseongOfStem(dayStem, main);
+}
+
+/* ---------- 일간 풀이 ---------- */
+
+const ILGAN_DESC = {
+  0: ["갑목(甲木) — 큰 나무", "곧게 뻗은 거목의 기운입니다. 리더십과 추진력이 강하고 자존심이 높으며, 새로운 일을 시작하고 앞장서는 데서 힘을 얻습니다. 다만 꺾일지언정 굽히지 않는 성향이라 유연함을 기르면 큰 재목이 됩니다."],
+  1: ["을목(乙木) — 화초·덩굴", "부드럽지만 끈질긴 생명력의 기운입니다. 적응력과 사교성이 뛰어나 어떤 환경에서도 자기 자리를 찾아냅니다. 유연한 처세가 장점이나, 결정적 순간에는 심지를 세우는 연습이 필요합니다."],
+  2: ["병화(丙火) — 태양", "만물을 비추는 태양의 기운입니다. 밝고 정열적이며 표현력이 풍부해 사람을 끌어모읍니다. 숨김없는 성격이 매력이지만, 한결같은 꾸준함을 더하면 빛이 오래갑니다."],
+  3: ["정화(丁火) — 촛불·달빛", "어둠을 밝히는 촛불의 기운입니다. 섬세하고 따뜻하며 헌신적이라 주변을 살뜰히 챙깁니다. 내면의 열정이 깊은 만큼, 자신을 태워 소진하지 않도록 균형이 중요합니다."],
+  4: ["무토(戊土) — 큰 산", "묵직한 산의 기운입니다. 신의가 두텁고 포용력이 커서 사람들이 기대는 언덕이 됩니다. 중심이 흔들리지 않는 대신 변화에 둔감할 수 있어, 때로는 먼저 움직이는 결단이 필요합니다."],
+  5: ["기토(己土) — 논밭의 흙", "만물을 기르는 옥토의 기운입니다. 실속 있고 치밀하며 남을 키워주는 재능이 있습니다. 겉으로 드러내지 않는 속 깊음이 강점이나, 속내를 나누는 것도 복이 됩니다."],
+  6: ["경금(庚金) — 무쇠·바위", "제련 전의 강철 같은 기운입니다. 결단력과 의리가 강하고 불의를 참지 못합니다. 강한 만큼 부딪힘도 많으니, 다듬어질수록 명검이 되는 사주입니다."],
+  7: ["신금(辛金) — 보석", "세공된 보석의 기운입니다. 예리하고 섬세하며 완벽주의적 미감이 있습니다. 자존심이 높고 명예를 중시하니, 스스로를 인정하는 여유가 빛을 더합니다."],
+  8: ["임수(壬水) — 바다·강", "쉼 없이 흐르는 큰물의 기운입니다. 지혜롭고 스케일이 크며 포부가 원대합니다. 넓게 품는 만큼 산만해질 수 있어, 물길을 정해 흐르면 큰 바다에 이릅니다."],
+  9: ["계수(癸水) — 이슬비·샘물", "스며드는 빗물의 기운입니다. 총명하고 직관이 뛰어나며 상상력이 풍부합니다. 조용히 만물을 적시는 힘이 있으니, 자신감을 갖고 재능을 드러내면 좋습니다."]
+};
+
+/* ---------- 렌더링 ---------- */
+
+function glyphHTML(kind, stem, branch, dayStem, isDayPillar) {
+  const se = stemElem(stem), be = BRANCH_ELEM[branch];
+  const stemSib = isDayPillar ? "일간(나)" : sibseongOfStem(dayStem, stem);
+  const branchSib = sibseongOfBranch(dayStem, branch);
+  const jjg = JIJANGGAN[branch].map(s => STEMS_KO[s]).join("·");
+  return `
+    <div class="glyph">
+      <div class="hanja e-${ELEM_CLASS[se]}">${STEMS_HJ[stem]}</div>
+      <div class="kor">${STEMS_KO[stem]} · ${ELEM_NAMES[se]}(${ELEM_HJ[se]})</div>
+      <div class="sibseong">${stemSib}</div>
+    </div>
+    <div class="glyph">
+      <div class="hanja e-${ELEM_CLASS[be]}">${BRANCHES_HJ[branch]}</div>
+      <div class="kor">${BRANCHES_KO[branch]} · ${ELEM_NAMES[be]}(${ELEM_HJ[be]})</div>
+      <div class="sibseong">${branchSib}</div>
+    </div>
+    <div class="jjg">지장간 ${jjg}</div>`;
+}
+
+function render(saju, input) {
+  const { yearP, monthP, dayP, hourP, sajuYear, daeun, daeunsu, forward } = saju;
+  const dayStem = dayP.stem;
+
+  // 요약 줄
+  const gzName = p => STEMS_KO[p.stem] + BRANCHES_KO[p.branch];
+  document.getElementById("summaryLine").innerHTML =
+    `${input.y}년 ${input.m}월 ${input.d}일 ${input.timeUnknown ? "(시간 모름)" : String(input.hh).padStart(2,"0") + ":" + String(input.mm).padStart(2,"0")} · ${input.gender === "M" ? "남자" : "여자"}<br>` +
+    `<b>${gzName(yearP)}년 ${gzName(monthP)}월 ${gzName(dayP)}일${hourP ? " " + gzName(hourP) + "시" : ""}</b>` +
+    ` — ${sajuYear}년 ${BRANCH_ANIMAL[yearP.branch]}띠`;
+
+  // 기둥 (좌→우: 시·일·월·년)
+  const cols = [
+    ["時柱 시주", hourP, false],
+    ["日柱 일주", dayP, true],
+    ["月柱 월주", monthP, false],
+    ["年柱 년주", yearP, false]
+  ];
+  document.getElementById("pillarsBox").innerHTML = cols.map(([name, p, isDay]) => {
+    if (!p) return `<div class="pillar"><div class="pname">${name}</div><div class="glyph" style="padding:34px 0;color:var(--ink-soft)">시간<br>모름</div></div>`;
+    return `<div class="pillar"><div class="pname">${name}</div>${glyphHTML(name, p.stem, p.branch, dayStem, isDay)}</div>`;
+  }).join("");
+
+  // 오행 분포
+  const counts = [0,0,0,0,0];
+  const pillars = [yearP, monthP, dayP, hourP].filter(Boolean);
+  pillars.forEach(p => { counts[stemElem(p.stem)]++; counts[BRANCH_ELEM[p.branch]]++; });
+  const total = pillars.length * 2;
+  const maxC = Math.max(...counts);
+  document.getElementById("ohaengBox").innerHTML = counts.map((c, i) => `
+    <div class="ob">
+      <div class="barbox"><div class="bar b-${ELEM_CLASS[i]}" style="height:${maxC ? Math.round(c / maxC * 100) : 0}%"></div></div>
+      <div class="lbl e-${ELEM_CLASS[i]}">${ELEM_NAMES[i]} ${ELEM_HJ[i]}</div>
+      <div class="cnt">${c}개</div>
+    </div>`).join("");
+
+  const strong = counts.map((c,i)=>[c,i]).filter(([c])=>c===maxC && c>0).map(([,i])=>ELEM_NAMES[i]);
+  const missing = counts.map((c,i)=>[c,i]).filter(([c])=>c===0).map(([,i])=>ELEM_NAMES[i]);
+  let cmt = `여덟 글자${total < 8 ? "(시주 제외 " + total + "글자)" : ""} 중 <b>${strong.join("·")}</b> 기운이 가장 강합니다.`;
+  cmt += missing.length ? ` 원국에 없는 오행은 <b>${missing.join("·")}</b>입니다. 없는 오행은 대운·세운에서 채워지기도 합니다.` : " 다섯 기운을 고루 갖춘 조화로운 구성입니다.";
+  document.getElementById("ohaengComment").innerHTML = cmt;
+
+  // 대운
+  document.getElementById("daeunInfo").innerHTML =
+    `대운수 <b>${daeunsu}</b> · ${forward ? "순행(順行)" : "역행(逆行)"} — 만 나이 기준 대략적인 시작 시점입니다`;
+  const dt = document.getElementById("daeunTable");
+  dt.innerHTML =
+    "<tr>" + daeun.map(u => `<th>${u.age}세~</th>`).join("") + "</tr>" +
+    "<tr>" + daeun.map(u => `<td><span class="h e-${ELEM_CLASS[stemElem(u.stem)]}">${STEMS_HJ[u.stem]}</span><br><span class="s">${STEMS_KO[u.stem]} ${sibseongOfStem(dayStem, u.stem)}</span></td>`).join("") + "</tr>" +
+    "<tr>" + daeun.map(u => `<td><span class="h e-${ELEM_CLASS[BRANCH_ELEM[u.branch]]}">${BRANCHES_HJ[u.branch]}</span><br><span class="s">${BRANCHES_KO[u.branch]} ${sibseongOfBranch(dayStem, u.branch)}</span></td>`).join("") + "</tr>";
+
+  // 일간 풀이
+  const [t, desc] = ILGAN_DESC[dayStem];
+  document.getElementById("ilganBox").innerHTML =
+    `<p class="ilgan-title e-${ELEM_CLASS[stemElem(dayStem)]}">${t}</p><p>${desc}</p>` +
+    `<p style="font-size:0.85rem;color:var(--ink-soft)">일간(日干)은 사주에서 '나 자신'을 나타내는 글자로, 일주의 천간입니다. 나머지 일곱 글자는 일간과의 관계(십성)로 읽습니다.</p>`;
+
+  document.getElementById("result").style.display = "block";
+}
+
+/* ---------- 폼 처리 ---------- */
+
+document.getElementById("unknownTime").addEventListener("change", e => {
+  document.getElementById("birthTime").disabled = e.target.checked;
+});
+
+document.getElementById("sajuForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const dateVal = document.getElementById("birthDate").value;
+  if (!dateVal) return;
+  const [y, m, d] = dateVal.split("-").map(Number);
+  const timeUnknown = document.getElementById("unknownTime").checked;
+  const timeVal = document.getElementById("birthTime").value || "12:00";
+  const [hh, mm] = timeVal.split(":").map(Number);
+  const gender = document.getElementById("gender").value;
+  const solarCorr = document.getElementById("solarCorrection").checked;
+
+  const saju = calcSaju(y, m, d, timeUnknown ? 12 : hh, timeUnknown ? 0 : mm, { timeUnknown, solarCorr, gender });
+  render(saju, { y, m, d, hh, mm, timeUnknown, gender });
+  document.getElementById("result").scrollIntoView({ behavior: "smooth" });
+});
+</script>
+</body>
+</html>
