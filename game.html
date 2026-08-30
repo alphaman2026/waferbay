@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>정전기 헌터 ⚡ — WaferBay FAB ESD 소탕전</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⚡</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<style>
+:root{
+  --bg:#0b0e1a; --bg2:#121631; --card:#181d3d; --card2:#1f2550;
+  --line:#2b3266; --txt:#e8eaff; --dim:#9aa1d0;
+  --accent:#7c6cf0; --accent2:#38bdf8; --ok:#34d399; --warn:#fbbf24; --bad:#f87171;
+  --grad:linear-gradient(135deg,#7c6cf0,#38bdf8);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Segoe UI','Malgun Gothic',sans-serif;background:var(--bg);color:var(--txt);touch-action:none;
+  overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+body::before{content:'';position:fixed;inset:0;background:
+  radial-gradient(600px 300px at 15% 0%,rgba(124,108,240,.18),transparent),
+  radial-gradient(700px 350px at 85% 10%,rgba(56,189,248,.12),transparent);pointer-events:none}
+
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  padding:20px;gap:14px;z-index:10;overflow-y:auto}
+.screen.show{display:flex}
+
+h1.title{font-size:clamp(28px,6vw,44px);font-weight:900;text-align:center;line-height:1.25}
+h1.title .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.subtitle{color:var(--dim);font-size:clamp(12px,3vw,15px);text-align:center;max-width:480px;line-height:1.6}
+
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;width:100%;max-width:400px;
+  display:flex;flex-direction:column;gap:12px}
+.panel label{font-size:12px;font-weight:700;color:var(--dim)}
+.panel input{background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);
+  font-size:16px;padding:12px 14px;width:100%;outline:none;font-family:inherit}
+.panel input:focus{border-color:var(--accent)}
+.btn{background:var(--grad);border:none;color:#fff;font-size:16px;font-weight:800;padding:13px;border-radius:12px;
+  cursor:pointer;transition:.15s;width:100%;font-family:inherit}
+.btn:hover{filter:brightness(1.15)}
+.btn:disabled{filter:grayscale(.6);opacity:.5;cursor:default}
+.btn.ghost{background:var(--card2);border:1px solid var(--line);color:var(--txt)}
+.btn.small{width:auto;padding:9px 18px;font-size:14px}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.divider{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:12px;font-weight:700}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--line)}
+
+.roomcode{font-size:40px;font-weight:900;letter-spacing:10px;text-align:center;background:var(--grad);
+  -webkit-background-clip:text;background-clip:text;color:transparent;padding:6px 0 2px}
+.codelbl{text-align:center;font-size:12px;color:var(--dim)}
+.plist{display:flex;flex-direction:column;gap:8px}
+.pl-item{display:flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--line);
+  border-radius:10px;padding:9px 14px;font-size:14px;font-weight:700}
+.pl-item .dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.pl-item .tagx{margin-left:auto;font-size:11px;color:var(--dim);font-weight:600}
+.hint{font-size:12px;color:var(--dim);text-align:center;line-height:1.6}
+.howto{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;max-width:400px;
+  width:100%;font-size:13px;color:var(--dim);line-height:1.9}
+.howto b{color:var(--txt)}
+
+/* ── game screen ── */
+#gameScreen{padding:0;display:none}
+#gameScreen.show{display:block}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:flex-start;justify-content:space-between;
+  padding:calc(8px + env(safe-area-inset-top)) 12px 0;pointer-events:none;z-index:5}
+#timer{font-size:26px;font-weight:900;background:rgba(11,14,26,.7);border:1px solid var(--line);
+  border-radius:12px;padding:6px 16px;backdrop-filter:blur(6px)}
+#timer.low{color:var(--bad);animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.4}}
+#board{display:flex;flex-direction:column;gap:4px;background:rgba(11,14,26,.7);border:1px solid var(--line);
+  border-radius:12px;padding:8px 12px;min-width:150px;backdrop-filter:blur(6px)}
+.b-row{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700}
+.b-row .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.b-row .sc{margin-left:auto;font-variant-numeric:tabular-nums}
+.b-row.me{color:#fff}.b-row:not(.me){color:var(--dim)}
+#stick{position:absolute;width:120px;height:120px;border-radius:50%;background:rgba(124,108,240,.12);
+  border:2px solid rgba(124,108,240,.4);display:none;z-index:6;pointer-events:none}
+#stick .knob{position:absolute;width:52px;height:52px;border-radius:50%;background:rgba(124,108,240,.55);
+  left:34px;top:34px;box-shadow:0 0 18px rgba(124,108,240,.6)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--card2);
+  border:1px solid var(--line);border-radius:12px;padding:10px 20px;font-size:14px;font-weight:700;
+  z-index:99;opacity:0;transition:.3s;pointer-events:none;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
+#flash{position:fixed;inset:0;background:rgba(248,113,113,.35);opacity:0;pointer-events:none;z-index:8;transition:opacity .5s}
+
+/* ── result ── */
+#resultScreen{background:rgba(11,14,26,.88);backdrop-filter:blur(8px);z-index:20}
+.rank{display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px}
+.rk{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:12px 16px;font-size:15px;font-weight:700}
+.rk.first{border-color:var(--warn);box-shadow:0 0 24px rgba(251,191,36,.25)}
+.rk .medal{font-size:22px;width:30px;text-align:center}
+.rk .dot{width:13px;height:13px;border-radius:50%}
+.rk .sc{margin-left:auto;font-size:18px;font-weight:900}
+.backlink{position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;z-index:30;font-size:13px;
+  color:var(--dim);text-decoration:none;background:rgba(11,14,26,.6);border:1px solid var(--line);
+  border-radius:10px;padding:7px 12px;font-weight:700}
+.backlink:hover{color:var(--txt)}
+@media(max-height:600px){h1.title{font-size:24px}.subtitle{display:none}.howto{display:none}}
+</style>
+</head>
+<body>
+
+<a class="backlink" href="index.html" id="backHome">← WaferBay</a>
+
+<!-- ══════════ 메뉴 ══════════ -->
+<div class="screen show" id="menuScreen">
+  <h1 class="title">⚡ <span class="g">정전기 헌터</span></h1>
+  <p class="subtitle">FAB 전공정·후공정 라인에 정전기(ESD)가 발생했다!<br>
+    이오나이저 봇을 조종해 웨이퍼가 손상되기 전에 정전기를 잡아먹자.</p>
+  <div class="panel">
+    <label>닉네임</label>
+    <input id="nickInput" maxlength="8" placeholder="엔지니어 이름 (최대 8자)" autocomplete="off">
+    <button class="btn" id="soloBtn">🤖 혼자 플레이</button>
+    <div class="divider">함께 플레이 (최대 7명)</div>
+    <button class="btn ghost" id="hostBtn">🏭 방 만들기</button>
+    <div class="row">
+      <input id="codeInput" maxlength="5" placeholder="방 코드" style="text-transform:uppercase;text-align:center;letter-spacing:4px;font-weight:800" autocomplete="off">
+      <button class="btn ghost" id="joinBtn">🚪 참가</button>
+    </div>
+  </div>
+  <div class="howto">
+    <b>🎮 조작법</b> — PC: 방향키/WASD · 모바일: 화면 터치 후 드래그<br>
+    <b>⚡ 정전기</b> +1점 · <b>🌟 대전 보너스</b> +5점 · <b>🔴 ESD 서지</b>에 닿으면 −3점!<br>
+    <b>⏱️ 90초</b> 동안 가장 많은 정전기를 제거한 엔지니어가 승리
+  </div>
+</div>
+
+<!-- ══════════ 대기실 ══════════ -->
+<div class="screen" id="lobbyScreen">
+  <h1 class="title">🏭 <span class="g">클린룸 대기실</span></h1>
+  <div class="panel">
+    <div class="codelbl">방 코드 — 친구에게 알려주세요</div>
+    <div class="roomcode" id="roomCodeView">·····</div>
+    <div class="plist" id="lobbyList"></div>
+    <button class="btn" id="startBtn" style="display:none">🚀 게임 시작</button>
+    <div class="hint" id="lobbyHint">호스트가 시작하기를 기다리는 중…</div>
+    <button class="btn ghost" id="leaveBtn">나가기</button>
+  </div>
+</div>
+
+<!-- ══════════ 게임 ══════════ -->
+<div class="screen" id="gameScreen">
+  <canvas id="cv"></canvas>
+  <div id="hud">
+    <div id="timer">90</div>
+    <div id="board"></div>
+  </div>
+  <div id="stick"><div class="knob"></div></div>
+  <div id="flash"></div>
+</div>
+
+<!-- ══════════ 결과 ══════════ -->
+<div class="screen" id="resultScreen">
+  <h1 class="title">🏆 <span class="g">라인 정상화!</span></h1>
+  <p class="subtitle" id="resultMsg"></p>
+  <div class="rank" id="rankList"></div>
+  <div class="panel" style="max-width:400px">
+    <button class="btn" id="againBtn" style="display:none">🔁 한 판 더</button>
+    <div class="hint" id="againHint" style="display:none">호스트가 다시 시작하기를 기다리는 중…</div>
+    <button class="btn ghost" id="exitBtn">메뉴로</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════════
+   정전기 헌터 — FAB ESD 소탕전
+   서버 없는 P2P 멀티플레이 (PeerJS/WebRTC, 호스트 권위 방식)
+   ═══════════════════════════════════════════════════════════ */
+
+// ── 상수 ──
+const W = 1600, H = 1000;              // 월드 크기
+const MAXP = 7;                        // 최대 인원
+const GAME_SECONDS = 90;
+const PLAYER_SPEED = 270;
+const SPARK_VAL = 1, GOLD_VAL = 5, HIT_PENALTY = 3;
+const PEER_PREFIX = 'waferbay-esd-';
+const COLORS = ['#7c6cf0','#38bdf8','#34d399','#fbbf24','#f472b6','#fb923c','#f87171'];
+
+const STATIONS = [
+  // 전공정 (Front-End)
+  {x:280, y:200, e:'🔥', n:'산화'},      {x:800, y:170, e:'💡', n:'포토'},
+  {x:1320,y:200, e:'🌊', n:'식각'},      {x:280, y:400, e:'🧪', n:'증착'},
+  {x:800, y:430, e:'⚛️', n:'이온주입'},  {x:1320,y:400, e:'💿', n:'CMP'},
+  // 후공정 (Back-End)
+  {x:280, y:620, e:'⚙️', n:'백그라인딩'},{x:800, y:590, e:'🔪', n:'다이싱'},
+  {x:1320,y:620, e:'📌', n:'다이본딩'},  {x:280, y:830, e:'🧵', n:'와이어본딩'},
+  {x:800, y:860, e:'🛡️', n:'몰딩'},     {x:1320,y:830, e:'✅', n:'패키지 테스트'},
+];
+
+// ── DOM ──
+const $ = id => document.getElementById(id);
+const screens = {menu:$('menuScreen'), lobby:$('lobbyScreen'), game:$('gameScreen'), result:$('resultScreen')};
+function showScreen(name){
+  for(const k in screens) screens[k].classList.toggle('show', k===name);
+  $('backHome').style.display = (name==='menu') ? '' : 'none';
+}
+function toast(msg, ms=2500){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+// ── 사운드 (WebAudio 비프) ──
+let AC=null;
+function initAudio(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC&&AC.state==='suspended') AC.resume(); }
+function beep(freq, dur=0.08, type='square', vol=0.06){
+  if(!AC) return;
+  try{
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type=type; o.frequency.value=freq;
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+dur);
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+const sfx = {
+  eat(){ beep(880,0.06,'square'); beep(1320,0.05,'square'); },
+  gold(){ beep(1046,0.1,'triangle',0.09); beep(1568,0.12,'triangle',0.09); },
+  hit(){ beep(140,0.25,'sawtooth',0.12); },
+  start(){ beep(523,0.1,'triangle',0.09); setTimeout(()=>beep(784,0.15,'triangle',0.09),120); },
+  end(){ beep(784,0.12,'triangle',0.09); setTimeout(()=>beep(1046,0.2,'triangle',0.09),140); },
+};
+
+// ═══════════ 게임 상태 ═══════════
+const G = {
+  phase:'menu',          // menu | lobby | playing | ended
+  isHost:false, solo:false,
+  myId:'h', myName:'', roomCode:'',
+  players:{},            // pid -> {n(이름), c(색인덱스), x, y, s(점수), inv(무적종료ms), lx,ly(보간용)}
+  sparks:[],             // {id,x,y,vx,vy,type} type 0=일반 1=골드
+  hazards:[],            // {x,y,a(방향)}
+  particles:[],          // 이펙트
+  timeLeft:GAME_SECONDS,
+  sparkSeq:0,
+  peer:null, conns:[], hostConn:null,
+};
+
+// ── 네트워크 ──
+function randCode(){
+  const ch='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='';
+  for(let i=0;i<5;i++) s+=ch[Math.floor(Math.random()*ch.length)];
+  return s;
+}
+function cleanupNet(){
+  G.conns.forEach(c=>{ try{c.close();}catch(e){} });
+  G.conns=[];
+  if(G.hostConn){ try{G.hostConn.close();}catch(e){} G.hostConn=null; }
+  if(G.peer){ try{G.peer.destroy();}catch(e){} G.peer=null; }
+}
+function hostBroadcast(msg){
+  for(const c of G.conns){ if(c.open){ try{c.send(msg);}catch(e){} } }
+}
+function sendToHost(msg){
+  if(G.hostConn && G.hostConn.open){ try{G.hostConn.send(msg);}catch(e){} }
+}
+
+// ── 방 만들기 (호스트) ──
+function createRoom(){
+  if(typeof Peer==='undefined'){ toast('네트워크 모듈을 불러오지 못했어요. 혼자 플레이만 가능합니다.'); return; }
+  const code=randCode();
+  const peer=new Peer(PEER_PREFIX+code);
+  G.peer=peer;
+  toast('방을 만드는 중…');
+  peer.on('open', ()=>{
+    G.isHost=true; G.solo=false; G.roomCode=code; G.myId='h';
+    G.players={ h:{n:G.myName, c:0, x:W/2, y:H/2, s:0, inv:0} };
+    enterLobby();
+  });
+  peer.on('connection', conn=>{
+    conn.on('open', ()=>{
+      if(Object.keys(G.players).length>=MAXP || G.phase==='playing'){
+        try{conn.send({t:'full', reason:(G.phase==='playing')?'playing':'full'});}catch(e){}
+        setTimeout(()=>{try{conn.close();}catch(e){}},500);
+        return;
+      }
+      G.conns.push(conn);
+    });
+    conn.on('data', d=>hostOnData(conn,d));
+    conn.on('close', ()=>{
+      G.conns=G.conns.filter(c=>c!==conn);
+      if(G.players[conn.peer]){
+        toast(`${G.players[conn.peer].n} 님이 퇴장했어요`);
+        delete G.players[conn.peer];
+        syncLobby();
+      }
+    });
+  });
+  peer.on('error', err=>{
+    if(err.type==='unavailable-id'){ cleanupNet(); createRoom(); }
+    else{ toast('연결 오류: '+err.type); cleanupNet(); showScreen('menu'); G.phase='menu'; }
+  });
+}
+function hostOnData(conn,d){
+  if(!d||typeof d!=='object') return;
+  if(d.t==='hi'){
+    const usedC=Object.values(G.players).map(p=>p.c);
+    let c=0; while(usedC.includes(c)&&c<COLORS.length-1) c++;
+    G.players[conn.peer]={ n:String(d.name||'게스트').slice(0,8), c, x:W/2+(Math.random()*300-150), y:H/2+(Math.random()*200-100), s:0, inv:0 };
+    conn.send({t:'welcome', pid:conn.peer, code:G.roomCode});
+    toast(`${G.players[conn.peer].n} 님이 입장했어요 ⚡`);
+    syncLobby();
+  }
+  else if(d.t==='pos'){
+    const p=G.players[conn.peer];
+    if(p){ p.x=Math.max(0,Math.min(W,+d.x||0)); p.y=Math.max(0,Math.min(H,+d.y||0)); }
+  }
+}
+// 대기실 인원 목록을 모두에게 전파
+function syncLobby(){
+  const list=Object.entries(G.players).map(([id,p])=>({id, n:p.n, c:p.c}));
+  hostBroadcast({t:'lobby', list});
+  if(G.phase==='lobby') renderLobby(list);
+  if(G.phase==='playing'||G.phase==='ended') renderBoard();
+}
+
+// ── 방 참가 (게스트) ──
+function joinRoom(code){
+  if(typeof Peer==='undefined'){ toast('네트워크 모듈을 불러오지 못했어요. 혼자 플레이만 가능합니다.'); return; }
+  const peer=new Peer();
+  G.peer=peer;
+  toast('방에 연결하는 중…');
+  let joined=false;
+  peer.on('open', ()=>{
+    const conn=peer.connect(PEER_PREFIX+code, {reliable:true});
+    G.hostConn=conn;
+    conn.on('open', ()=>{ conn.send({t:'hi', name:G.myName}); });
+    conn.on('data', d=>{ joined=true; guestOnData(d); });
+    conn.on('close', ()=>{
+      if(G.phase!=='menu'){ toast('호스트와의 연결이 끊어졌어요'); backToMenu(); }
+    });
+    setTimeout(()=>{ if(!joined && G.phase==='menu'){ toast('방을 찾을 수 없어요. 코드를 확인해 주세요.'); cleanupNet(); } }, 8000);
+  });
+  peer.on('error', err=>{
+    if(err.type==='peer-unavailable'){ toast('방을 찾을 수 없어요. 코드를 확인해 주세요.'); }
+    else toast('연결 오류: '+err.type);
+    cleanupNet();
+  });
+}
+function guestOnData(d){
+  if(!d||typeof d!=='object') return;
+  switch(d.t){
+    case 'welcome':
+      G.isHost=false; G.solo=false; G.myId=d.pid; G.roomCode=d.code;
+      enterLobby();
+      break;
+    case 'full':
+      toast(d.reason==='playing' ? '게임이 이미 진행 중이에요. 잠시 후 다시 시도!' : '방이 가득 찼어요 (최대 7명)');
+      cleanupNet();
+      break;
+    case 'lobby':{
+      const old=G.players; G.players={};
+      d.list.forEach(e=>{
+        G.players[e.id]=old[e.id]||{n:e.n,c:e.c,x:W/2,y:H/2,s:0,inv:0};
+        G.players[e.id].n=e.n; G.players[e.id].c=e.c;
+      });
+      if(G.phase==='lobby') renderLobby(d.list);
+      if(G.phase==='playing'||G.phase==='ended') renderBoard();
+      break;
+    }
+    case 'start':{
+      const me=G.players[G.myId];
+      if(me){ me.x=d.sx; me.y=d.sy; }
+      startPlaying();
+      break;
+    }
+    case 'state': applyState(d); break;
+    case 'end': onGameEnd(d.rank); break;
+  }
+}
+// 호스트가 보내는 월드 상태 반영 (게스트)
+function applyState(d){
+  G.timeLeft=d.tl;
+  // 스파크: id 기준 갱신
+  const seen=new Set();
+  const byId={}; G.sparks.forEach(s=>byId[s.id]=s);
+  const next=[];
+  for(const [id,x,y,type] of d.sp){
+    seen.add(id);
+    const old=byId[id];
+    if(old){ old.tx=x; old.ty=y; next.push(old); }
+    else next.push({id,x,y,tx:x,ty:y,type,vx:0,vy:0});
+  }
+  G.sparks=next;
+  G.hazards=d.hz.map((h,i)=>{
+    const old=G.hazards[i];
+    return old ? {x:old.x,y:old.y,tx:h[0],ty:h[1]} : {x:h[0],y:h[1],tx:h[0],ty:h[1]};
+  });
+  for(const [pid,x,y,s,inv] of d.pl){
+    const p=G.players[pid];
+    if(!p) continue;
+    p.s=s; p.inv=inv;
+    if(pid!==G.myId){ p.tx=x; p.ty=y; }
+  }
+  // 이펙트 이벤트
+  if(d.ev) for(const [pid,x,y,val] of d.ev){
+    spawnBurst(x,y, val>=GOLD_VAL?'#fbbf24':'#38bdf8');
+    if(pid===G.myId){ val>=GOLD_VAL?sfx.gold():sfx.eat(); }
+  }
+  if(d.hit) for(const [pid,x,y] of d.hit){
+    spawnBurst(x,y,'#f87171');
+    if(pid===G.myId){ sfx.hit(); flashRed(); }
+  }
+  renderBoard(); updateTimer();
+}
+
+// ═══════════ 화면 전환 ═══════════
+function enterLobby(){
+  G.phase='lobby';
+  showScreen('lobby');
+  $('roomCodeView').textContent=G.roomCode;
+  $('startBtn').style.display=G.isHost?'':'none';
+  $('lobbyHint').style.display=G.isHost?'none':'';
+  if(G.isHost) syncLobby();
+}
+function renderLobby(list){
+  const el=$('lobbyList'); el.innerHTML='';
+  list.forEach(e=>{
+    const div=document.createElement('div'); div.className='pl-item';
+    div.innerHTML=`<span class="dot" style="background:${COLORS[e.c]}"></span>`;
+    const nm=document.createElement('span'); nm.textContent=e.n; div.appendChild(nm);
+    const tg=document.createElement('span'); tg.className='tagx';
+    tg.textContent=(e.id==='h'?'호스트':'')+(e.id===G.myId?' (나)':''); div.appendChild(tg);
+    el.appendChild(div);
+  });
+  const n=list.length;
+  const cap=document.createElement('div'); cap.className='hint'; cap.textContent=`${n} / ${MAXP} 명`;
+  el.appendChild(cap);
+  if(G.isHost) $('startBtn').disabled=false;
+}
+function backToMenu(){
+  cleanupNet();
+  G.phase='menu'; G.players={}; G.sparks=[]; G.hazards=[]; G.particles=[];
+  showScreen('menu');
+}
+
+// ═══════════ 호스트 시뮬레이션 ═══════════
+function hostStartGame(){
+  // 시작 위치를 원형으로 배치
+  const ids=Object.keys(G.players);
+  ids.forEach((pid,i)=>{
+    const ang=(i/ids.length)*Math.PI*2;
+    const p=G.players[pid];
+    p.x=W/2+Math.cos(ang)*220; p.y=H/2+Math.sin(ang)*160; p.s=0; p.inv=0;
+    p.tx=p.x; p.ty=p.y;
+  });
+  G.sparks=[]; G.sparkSeq=0;
+  const nHaz=ids.length>4?3:2;
+  G.hazards=[];
+  for(let i=0;i<nHaz;i++) G.hazards.push({x:150+Math.random()*(W-300), y:150+Math.random()*(H-300), a:Math.random()*Math.PI*2});
+  G.timeLeft=GAME_SECONDS;
+  for(let i=0;i<14;i++) hostSpawnSpark();
+  // 게스트에게 각자 시작 위치와 함께 시작 통보
+  for(const c of G.conns){
+    const p=G.players[c.peer];
+    if(p&&c.open){ try{c.send({t:'start', sx:p.x, sy:p.y});}catch(e){} }
+  }
+  startPlaying();
+}
+function hostSpawnSpark(){
+  const st=STATIONS[Math.floor(Math.random()*STATIONS.length)];
+  const ang=Math.random()*Math.PI*2, dist=40+Math.random()*110;
+  G.sparks.push({
+    id:G.sparkSeq++,
+    x:Math.max(30,Math.min(W-30, st.x+Math.cos(ang)*dist)),
+    y:Math.max(30,Math.min(H-30, st.y+Math.sin(ang)*dist)),
+    vx:(Math.random()-0.5)*60, vy:(Math.random()-0.5)*60,
+    type:Math.random()<0.08?1:0,
+  });
+}
+let hostEvents=[], hostHits=[];
+function hostTick(dt){
+  const nPlayers=Object.keys(G.players).length;
+  // 스파크 이동 + 보충
+  const want=Math.min(34, 13+nPlayers*3);
+  for(const s of G.sparks){
+    s.x+=s.vx*dt; s.y+=s.vy*dt;
+    if(s.x<20||s.x>W-20) s.vx*=-1;
+    if(s.y<20||s.y>H-20) s.vy*=-1;
+  }
+  if(G.sparks.length<want && Math.random()<dt*4) hostSpawnSpark();
+  // 해저드 이동
+  for(const h of G.hazards){
+    h.a+=(Math.random()-0.5)*dt*3;
+    h.x+=Math.cos(h.a)*100*dt; h.y+=Math.sin(h.a)*100*dt;
+    if(h.x<60){h.x=60;h.a=Math.PI-h.a;} if(h.x>W-60){h.x=W-60;h.a=Math.PI-h.a;}
+    if(h.y<60){h.y=60;h.a=-h.a;} if(h.y>H-60){h.y=H-60;h.a=-h.a;}
+  }
+  // 충돌 판정 (호스트 권위)
+  const now=performance.now();
+  for(const pid in G.players){
+    const p=G.players[pid];
+    const pr=playerRadius(p);
+    for(let i=G.sparks.length-1;i>=0;i--){
+      const s=G.sparks[i];
+      const dx=p.x-s.x, dy=p.y-s.y;
+      if(dx*dx+dy*dy < (pr+15)*(pr+15)){
+        const val=s.type?GOLD_VAL:SPARK_VAL;
+        p.s+=val;
+        hostEvents.push([pid, s.x, s.y, val]);
+        G.sparks.splice(i,1);
+      }
+    }
+    if(now>p.inv){
+      for(const h of G.hazards){
+        const dx=p.x-h.x, dy=p.y-h.y;
+        if(dx*dx+dy*dy < (pr+22)*(pr+22)){
+          p.s=Math.max(0,p.s-HIT_PENALTY);
+          p.inv=now+2000;
+          hostHits.push([pid, p.x, p.y]);
+          break;
+        }
+      }
+    }
+  }
+  // 타이머
+  G.timeLeft-=dt;
+  if(G.timeLeft<=0){
+    G.timeLeft=0;
+    const rank=Object.entries(G.players)
+      .map(([id,p])=>({id, n:p.n, c:p.c, s:p.s}))
+      .sort((a,b)=>b.s-a.s);
+    hostBroadcast({t:'end', rank});
+    onGameEnd(rank);
+  }
+}
+let lastStateSend=0;
+function hostSendState(){
+  const now=performance.now();
+  if(now-lastStateSend<66) return;   // ~15Hz
+  lastStateSend=now;
+  const msg={
+    t:'state', tl:Math.ceil(G.timeLeft),
+    pl:Object.entries(G.players).map(([id,p])=>[id, Math.round(p.x), Math.round(p.y), p.s, p.inv>now?1:0]),
+    sp:G.sparks.map(s=>[s.id, Math.round(s.x), Math.round(s.y), s.type]),
+    hz:G.hazards.map(h=>[Math.round(h.x), Math.round(h.y)]),
+  };
+  if(hostEvents.length){ msg.ev=hostEvents; }
+  if(hostHits.length){ msg.hit=hostHits; }
+  hostBroadcast(msg);
+  // 호스트 본인 이펙트
+  for(const [pid,x,y,val] of hostEvents){
+    spawnBurst(x,y, val>=GOLD_VAL?'#fbbf24':'#38bdf8');
+    if(pid===G.myId){ val>=GOLD_VAL?sfx.gold():sfx.eat(); }
+  }
+  for(const [pid,x,y] of hostHits){
+    spawnBurst(x,y,'#f87171');
+    if(pid===G.myId){ sfx.hit(); flashRed(); }
+  }
+  hostEvents=[]; hostHits=[];
+  renderBoard(); updateTimer();
+}
+let lastPosSend=0;
+function guestSendPos(){
+  const now=performance.now();
+  if(now-lastPosSend<50) return;     // 20Hz
+  lastPosSend=now;
+  const me=G.players[G.myId];
+  if(me) sendToHost({t:'pos', x:Math.round(me.x), y:Math.round(me.y)});
+}
+
+// ═══════════ 플레이 ═══════════
+function startPlaying(){
+  G.phase='playing';
+  G.particles=[];
+  showScreen('game');
+  resizeCanvas();
+  sfx.start();
+  toast('⚡ 정전기를 잡아라!', 1800);
+  updateTimer();
+}
+function playerRadius(p){ return 22+Math.min(60,p.s)*0.18; }
+
+function onGameEnd(rank){
+  G.phase='ended';
+  sfx.end();
+  showScreen('result');
+  const winner=rank[0];
+  const tie=rank.length>1 && rank[1].s===winner.s;
+  $('resultMsg').textContent = rank.length===1
+    ? `정전기 ${winner.s}개 제거! 수율 방어 성공 🎉`
+    : tie ? '공동 우승! 클린룸의 평화가 찾아왔다'
+    : `${winner.n} 님이 라인을 지켜냈습니다!`;
+  const el=$('rankList'); el.innerHTML='';
+  const medals=['🥇','🥈','🥉'];
+  rank.forEach((r,i)=>{
+    const div=document.createElement('div');
+    div.className='rk'+(i===0?' first':'');
+    div.innerHTML=`<span class="medal">${medals[i]||(i+1)+'위'}</span><span class="dot" style="background:${COLORS[r.c]}"></span>`;
+    const nm=document.createElement('span'); nm.textContent=r.n+(r.id===G.myId?' (나)':''); div.appendChild(nm);
+    const sc=document.createElement('span'); sc.className='sc'; sc.textContent=r.s+'점'; div.appendChild(sc);
+    el.appendChild(div);
+  });
+  $('againBtn').style.display=(G.isHost||G.solo)?'':'none';
+  $('againHint').style.display=(G.isHost||G.solo)?'none':'';
+}
+
+// ═══════════ 입력 ═══════════
+const keys={};
+window.addEventListener('keydown', e=>{
+  keys[e.key.toLowerCase()]=true;
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
+});
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+
+// 가상 조이스틱
+const stick={active:false, id:null, cx:0, cy:0, dx:0, dy:0};
+const stickEl=$('stick'), knobEl=stickEl.querySelector('.knob');
+const cv=$('cv');
+cv.addEventListener('touchstart', e=>{
+  e.preventDefault(); initAudio();
+  if(stick.active) return;
+  const t=e.changedTouches[0];
+  stick.active=true; stick.id=t.identifier;
+  stick.cx=t.clientX; stick.cy=t.clientY; stick.dx=0; stick.dy=0;
+  stickEl.style.display='block';
+  stickEl.style.left=(t.clientX-60)+'px'; stickEl.style.top=(t.clientY-60)+'px';
+  knobEl.style.left='34px'; knobEl.style.top='34px';
+},{passive:false});
+cv.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  if(!stick.active) return;
+  for(const t of e.changedTouches){
+    if(t.identifier!==stick.id) continue;
+    let dx=t.clientX-stick.cx, dy=t.clientY-stick.cy;
+    const len=Math.hypot(dx,dy), max=55;
+    if(len>max){ dx=dx/len*max; dy=dy/len*max; }
+    stick.dx=dx/max; stick.dy=dy/max;
+    knobEl.style.left=(34+dx)+'px'; knobEl.style.top=(34+dy)+'px';
+  }
+},{passive:false});
+function stickEnd(e){
+  for(const t of e.changedTouches){
+    if(t.identifier===stick.id){
+      stick.active=false; stick.dx=0; stick.dy=0;
+      stickEl.style.display='none';
+    }
+  }
+}
+cv.addEventListener('touchend', stickEnd);
+cv.addEventListener('touchcancel', stickEnd);
+
+function inputVector(){
+  let dx=0, dy=0;
+  if(keys['arrowleft']||keys['a']) dx-=1;
+  if(keys['arrowright']||keys['d']) dx+=1;
+  if(keys['arrowup']||keys['w']) dy-=1;
+  if(keys['arrowdown']||keys['s']) dy+=1;
+  if(dx||dy){ const l=Math.hypot(dx,dy); return {dx:dx/l, dy:dy/l}; }
+  if(stick.active) return {dx:stick.dx, dy:stick.dy};
+  return {dx:0, dy:0};
+}
+
+// ═══════════ 렌더링 ═══════════
+const ctx=cv.getContext('2d');
+let scale=1, offX=0, offY=0;
+function resizeCanvas(){
+  const dpr=Math.min(2, window.devicePixelRatio||1);
+  cv.width=innerWidth*dpr; cv.height=innerHeight*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  scale=Math.min(innerWidth/W, innerHeight/H);
+  offX=(innerWidth-W*scale)/2; offY=(innerHeight-H*scale)/2;
+}
+window.addEventListener('resize', resizeCanvas);
+
+function spawnBurst(x,y,color){
+  for(let i=0;i<10;i++){
+    const a=Math.random()*Math.PI*2, sp=60+Math.random()*160;
+    G.particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.5,maxLife:0.5,color});
+  }
+}
+function flashRed(){
+  const f=$('flash');
+  f.style.transition='none'; f.style.opacity='1';
+  requestAnimationFrame(()=>{ f.style.transition='opacity .5s'; f.style.opacity='0'; });
+}
+
+function drawWorld(now, dt){
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+  ctx.save();
+  ctx.translate(offX,offY); ctx.scale(scale,scale);
+
+  // 바닥
+  ctx.fillStyle='#0d1124'; ctx.fillRect(0,0,W,H);
+  // 구역 배경
+  ctx.fillStyle='rgba(124,108,240,.05)'; ctx.fillRect(0,0,W,H/2);
+  ctx.fillStyle='rgba(56,189,248,.05)'; ctx.fillRect(0,H/2,W,H/2);
+  // 격자
+  ctx.strokeStyle='rgba(43,50,102,.35)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  for(let x=0;x<=W;x+=100){ ctx.moveTo(x,0); ctx.lineTo(x,H); }
+  for(let y=0;y<=H;y+=100){ ctx.moveTo(0,y); ctx.lineTo(W,y); }
+  ctx.stroke();
+  // 구역 경계
+  ctx.strokeStyle='rgba(124,108,240,.5)'; ctx.lineWidth=3; ctx.setLineDash([18,14]);
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  ctx.setLineDash([]);
+  // 구역 라벨
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font='900 46px "Segoe UI","Malgun Gothic",sans-serif';
+  ctx.fillStyle='rgba(124,108,240,.16)';
+  ctx.fillText('전공정 · FRONT-END', W/2, 68);
+  ctx.fillStyle='rgba(56,189,248,.16)';
+  ctx.fillText('후공정 · BACK-END', W/2, H-64);
+  // 외곽 벽
+  ctx.strokeStyle='rgba(124,108,240,.6)'; ctx.lineWidth=5;
+  ctx.strokeRect(2,2,W-4,H-4);
+
+  // 공정 장비
+  for(const st of STATIONS){
+    ctx.fillStyle='rgba(24,29,61,.9)';
+    ctx.strokeStyle='rgba(43,50,102,.9)'; ctx.lineWidth=2;
+    roundRect(st.x-70, st.y-38, 140, 76, 12); ctx.fill(); ctx.stroke();
+    ctx.font='26px sans-serif'; ctx.fillStyle='#fff';
+    ctx.fillText(st.e, st.x, st.y-11);
+    ctx.font='700 15px "Segoe UI","Malgun Gothic",sans-serif';
+    ctx.fillStyle='#9aa1d0';
+    ctx.fillText(st.n, st.x, st.y+19);
+  }
+
+  // 스파크
+  for(const s of G.sparks){
+    if(!G.isHost&&!G.solo){
+      // 게스트: 목표 위치로 보간
+      s.x+=(s.tx-s.x)*Math.min(1,dt*12);
+      s.y+=(s.ty-s.y)*Math.min(1,dt*12);
+    }
+    const wob=Math.sin(now/120+s.id*1.7)*3;
+    if(s.type===1){
+      ctx.shadowColor='#fbbf24'; ctx.shadowBlur=22;
+      ctx.font='32px sans-serif';
+      ctx.fillText('🌟', s.x, s.y+wob);
+    }else{
+      ctx.shadowColor='#38bdf8'; ctx.shadowBlur=16;
+      ctx.font='24px sans-serif';
+      ctx.fillText('⚡', s.x, s.y+wob);
+    }
+    ctx.shadowBlur=0;
+  }
+
+  // ESD 서지 (해저드)
+  for(const h of G.hazards){
+    if(!G.isHost&&!G.solo){
+      h.x+=(h.tx-h.x)*Math.min(1,dt*10);
+      h.y+=(h.ty-h.y)*Math.min(1,dt*10);
+    }
+    const pulse=1+Math.sin(now/150)*0.12;
+    ctx.shadowColor='#f87171'; ctx.shadowBlur=28;
+    ctx.fillStyle='rgba(248,113,113,.25)';
+    ctx.beginPath(); ctx.arc(h.x,h.y,30*pulse,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#f87171';
+    ctx.beginPath(); ctx.arc(h.x,h.y,17*pulse,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.font='20px sans-serif'; ctx.fillStyle='#fff';
+    ctx.fillText('☠️', h.x, h.y);
+  }
+
+  // 플레이어
+  const nowMs=performance.now();
+  for(const pid in G.players){
+    const p=G.players[pid];
+    if(pid!==G.myId && !G.solo){
+      if(p.tx!==undefined){
+        p.x+=(p.tx-p.x)*Math.min(1,dt*10);
+        p.y+=(p.ty-p.y)*Math.min(1,dt*10);
+      }
+    }
+    const r=playerRadius(p);
+    const col=COLORS[p.c]||COLORS[0];
+    const invul = G.isHost||G.solo ? nowMs<p.inv : !!p.inv;
+    ctx.globalAlpha = invul ? (Math.sin(nowMs/70)>0?0.35:0.85) : 1;
+    // 글로우 + 몸통
+    ctx.shadowColor=col; ctx.shadowBlur=20;
+    ctx.fillStyle=col;
+    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    // 안테나
+    ctx.strokeStyle=col; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(p.x,p.y-r); ctx.lineTo(p.x,p.y-r-11); ctx.stroke();
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(p.x,p.y-r-14,4.5,0,Math.PI*2); ctx.fill();
+    // 눈
+    ctx.fillStyle='#0b0e1a';
+    ctx.beginPath();
+    ctx.arc(p.x-r*0.34,p.y-r*0.12,r*0.16,0,Math.PI*2);
+    ctx.arc(p.x+r*0.34,p.y-r*0.12,r*0.16,0,Math.PI*2);
+    ctx.fill();
+    // 입
+    ctx.strokeStyle='#0b0e1a'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(p.x,p.y+r*0.18,r*0.32,0.15*Math.PI,0.85*Math.PI); ctx.stroke();
+    ctx.globalAlpha=1;
+    // 이름 + 점수
+    ctx.font='700 15px "Segoe UI","Malgun Gothic",sans-serif';
+    ctx.fillStyle=pid===G.myId?'#fff':'#c6cbf5';
+    ctx.fillText(`${p.n} · ${p.s}`, p.x, p.y-r-26);
+  }
+
+  // 파티클
+  for(let i=G.particles.length-1;i>=0;i--){
+    const pt=G.particles[i];
+    pt.life-=dt;
+    if(pt.life<=0){ G.particles.splice(i,1); continue; }
+    pt.x+=pt.vx*dt; pt.y+=pt.vy*dt;
+    ctx.globalAlpha=pt.life/pt.maxLife;
+    ctx.fillStyle=pt.color;
+    ctx.fillRect(pt.x-3,pt.y-3,6,6);
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+// ── HUD ──
+function updateTimer(){
+  const t=Math.max(0,Math.ceil(G.timeLeft));
+  const el=$('timer');
+  el.textContent=t;
+  el.classList.toggle('low', t<=10);
+}
+function renderBoard(){
+  const el=$('board');
+  const rows=Object.entries(G.players)
+    .map(([id,p])=>({id,n:p.n,c:p.c,s:p.s}))
+    .sort((a,b)=>b.s-a.s);
+  el.innerHTML='';
+  rows.forEach(r=>{
+    const div=document.createElement('div');
+    div.className='b-row'+(r.id===G.myId?' me':'');
+    div.innerHTML=`<span class="dot" style="background:${COLORS[r.c]}"></span>`;
+    const nm=document.createElement('span'); nm.textContent=r.n; div.appendChild(nm);
+    const sc=document.createElement('span'); sc.className='sc'; sc.textContent=r.s; div.appendChild(sc);
+    el.appendChild(div);
+  });
+}
+
+// ═══════════ 메인 루프 ═══════════
+let lastT=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-lastT)/1000);
+  lastT=now;
+  if(G.phase==='playing'){
+    // 내 이동 (로컬 반응성)
+    const me=G.players[G.myId];
+    if(me){
+      const v=inputVector();
+      me.x=Math.max(24,Math.min(W-24, me.x+v.dx*PLAYER_SPEED*dt));
+      me.y=Math.max(24,Math.min(H-24, me.y+v.dy*PLAYER_SPEED*dt));
+    }
+    if(G.isHost||G.solo){
+      hostTick(dt);
+      if(!G.solo) hostSendState();
+      else{ renderBoard(); updateTimer(); }
+    }else{
+      guestSendPos();
+    }
+    drawWorld(now, dt);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// 솔로 모드: 네트워크 없이 호스트 로직을 그대로 사용
+function startSolo(){
+  G.solo=true; G.isHost=false; G.myId='h'; G.roomCode='';
+  G.players={ h:{n:G.myName, c:0, x:W/2, y:H/2, s:0, inv:0} };
+  hostStartGame();
+}
+// 솔로에서도 hostTick의 이벤트 큐를 소비해야 함
+setInterval(()=>{
+  if(G.solo&&G.phase==='playing'){
+    for(const [pid,x,y,val] of hostEvents){
+      spawnBurst(x,y, val>=GOLD_VAL?'#fbbf24':'#38bdf8');
+      val>=GOLD_VAL?sfx.gold():sfx.eat();
+    }
+    for(const [pid,x,y] of hostHits){ spawnBurst(x,y,'#f87171'); sfx.hit(); flashRed(); }
+    hostEvents=[]; hostHits=[];
+  }
+},60);
+
+// ═══════════ 버튼 바인딩 ═══════════
+function getNick(){
+  const n=$('nickInput').value.trim();
+  if(!n){ toast('닉네임을 입력해 주세요!'); $('nickInput').focus(); return null; }
+  return n.slice(0,8);
+}
+$('soloBtn').onclick=()=>{
+  const n=getNick(); if(!n) return;
+  initAudio(); G.myName=n; saveNick(n);
+  cleanupNet(); startSolo();
+};
+$('hostBtn').onclick=()=>{
+  const n=getNick(); if(!n) return;
+  initAudio(); G.myName=n; saveNick(n);
+  cleanupNet(); createRoom();
+};
+$('joinBtn').onclick=()=>{
+  const n=getNick(); if(!n) return;
+  const code=$('codeInput').value.trim().toUpperCase();
+  if(code.length!==5){ toast('5자리 방 코드를 입력해 주세요'); $('codeInput').focus(); return; }
+  initAudio(); G.myName=n; saveNick(n);
+  cleanupNet(); joinRoom(code);
+};
+$('startBtn').onclick=()=>{
+  if(!G.isHost) return;
+  initAudio();
+  hostStartGame();
+};
+$('leaveBtn').onclick=backToMenu;
+$('exitBtn').onclick=backToMenu;
+$('againBtn').onclick=()=>{
+  if(G.solo){ startSolo(); return; }
+  if(G.isHost) hostStartGame();
+};
+$('codeInput').addEventListener('keydown', e=>{ if(e.key==='Enter') $('joinBtn').click(); });
+$('nickInput').addEventListener('keydown', e=>{ if(e.key==='Enter') $('soloBtn').click(); });
+
+// 닉네임 기억 (실패해도 무시)
+function saveNick(n){ try{ localStorage.setItem('esd-nick', n); }catch(e){} }
+try{ const s=localStorage.getItem('esd-nick'); if(s) $('nickInput').value=s; }catch(e){}
+
+resizeCanvas();
+</script>
+</body>
+</html>
