@@ -272,7 +272,25 @@ def _jog(self, axis, sign):
     <li>홈/모터해제/위치확인 버튼은 <code>MarlinSerial</code> 의 래퍼 메서드를 직접 호출.</li>
   </ul>
 
-  <h3>4-4. UART 콘솔 (_build_console / _poll_marlin_rx / _append_console)</h3>
+  <h3>4-3b. 테스트 설정 패널 (_build_test_params / _apply_test_params)</h3>
+  <pre># 입력 변수 (StringVar): xscope_var, yscope_var, xtest_var, ytest_var, speed_var
+for var in (...):
+    var.trace_add("write", lambda *_: self._update_param_warnings())  # 실시간 경고</pre>
+  <ul>
+    <li><b>X_scope / Y_scope</b>, <b>X_test_distance / Y_test_distance</b> 는 mm 단위
+        입력이며, 각 쌍은 <b>같은 값</b>이어야 한다. <code>_pair_differs()</code> 가
+        두 입력이 모두 숫자일 때만 비교하여, 다르면 해당 줄 아래 빨간 경고 라벨을
+        실시간 표시한다.</li>
+    <li><b>Search Speed</b> 는 0 초과 <b>최대 12</b> 까지만 허용. 초과 입력 시
+        실시간 경고가 뜬다.</li>
+    <li><code>_apply_test_params()</code> — [설정 적용] 버튼 콜백. 숫자 파싱 →
+        쌍 일치 검사 → 속도 범위 검사 순으로 검증하고, 하나라도 실패하면
+        <code>messagebox.showerror</code> 로 어떤 값이 틀렸는지 알린 뒤 중단한다.
+        모두 통과하면 <code>self.test_params</code> dict 에 저장하고 콘솔에
+        <code>[설정] …</code> 줄(action 태그)을 남긴다.</li>
+  </ul>
+
+  <h3>4-4. 메시지 콘솔 (UART / Command) (_build_console / _poll_marlin_rx / _append_console)</h3>
   <ul>
     <li><code>ScrolledText</code> 를 <code>state="disabled"</code> 로 두어 사용자가
         직접 수정하지 못하게 하고, 추가할 때만 잠시 <code>normal</code> 로 바꿉니다.</li>

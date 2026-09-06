@@ -71,6 +71,7 @@ class App(tk.Tk):
 
         self._build_marlin_conn(left)
         self._build_jog(left)
+        self._build_test_params(left)
         self._build_console(left)
         self._build_ad2_panel(right)
 
@@ -185,9 +186,115 @@ class App(tk.Tk):
             return
         self.marlin.jog(axis, sign * step)
 
-    # ------------------------------------------------- UART 콘솔 패널
+    # --------------------------------------- 테스트 설정 (Test Parameters)
+    def _build_test_params(self, parent):
+        f = ttk.LabelFrame(parent, text=" 테스트 설정 (Test Parameters) ", padding=6)
+        f.pack(fill="x", pady=(0, 6))
+
+        self.xscope_var = tk.StringVar(value="10")
+        self.yscope_var = tk.StringVar(value="10")
+        self.xtest_var = tk.StringVar(value="1")
+        self.ytest_var = tk.StringVar(value="1")
+        self.speed_var = tk.StringVar(value="5")
+        self.test_params = None      # [설정 적용] 성공 시 dict 로 저장
+
+        def row(r, name1, var1, name2, var2):
+            ttk.Label(f, text=name1 + ":").grid(row=r, column=0, sticky="e")
+            ttk.Entry(f, textvariable=var1, width=7,
+                      justify="right").grid(row=r, column=1, padx=(2, 0))
+            ttk.Label(f, text="mm").grid(row=r, column=2, sticky="w", padx=(2, 10))
+            ttk.Label(f, text=name2 + ":").grid(row=r, column=3, sticky="e")
+            ttk.Entry(f, textvariable=var2, width=7,
+                      justify="right").grid(row=r, column=4, padx=(2, 0))
+            ttk.Label(f, text="mm").grid(row=r, column=5, sticky="w", padx=(2, 0))
+
+        row(0, "X_scope", self.xscope_var, "Y_scope", self.yscope_var)
+        self.scope_warn = ttk.Label(f, text="", foreground="red")
+        self.scope_warn.grid(row=1, column=0, columnspan=6, sticky="w")
+
+        row(2, "X_test_distance", self.xtest_var, "Y_test_distance", self.ytest_var)
+        self.dist_warn = ttk.Label(f, text="", foreground="red")
+        self.dist_warn.grid(row=3, column=0, columnspan=6, sticky="w")
+
+        ttk.Label(f, text="Search Speed:").grid(row=4, column=0, sticky="e", pady=(2, 0))
+        ttk.Entry(f, textvariable=self.speed_var, width=7,
+                  justify="right").grid(row=4, column=1, padx=(2, 0), pady=(2, 0))
+        ttk.Label(f, text="(최대 12)").grid(row=4, column=2, columnspan=2,
+                                            sticky="w", padx=(2, 0), pady=(2, 0))
+        ttk.Button(f, text="설정 적용", width=9,
+                   command=self._apply_test_params).grid(row=4, column=4,
+                                                         columnspan=2, pady=(2, 0))
+        self.speed_warn = ttk.Label(f, text="", foreground="red")
+        self.speed_warn.grid(row=5, column=0, columnspan=6, sticky="w")
+
+        # 입력이 바뀔 때마다 실시간으로 불일치/범위 초과 경고를 표시
+        for var in (self.xscope_var, self.yscope_var, self.xtest_var,
+                    self.ytest_var, self.speed_var):
+            var.trace_add("write", lambda *_: self._update_param_warnings())
+
+    @staticmethod
+    def _pair_differs(var1, var2):
+        """두 입력이 모두 숫자로 해석될 때만 값 비교. 다르면 True."""
+        try:
+            return float(var1.get()) != float(var2.get())
+        except ValueError:
+            return False
+
+    def _update_param_warnings(self):
+        self.scope_warn.config(
+            text="X_scope 와 Y_scope 값이 서로 틀립니다!"
+            if self._pair_differs(self.xscope_var, self.yscope_var) else "")
+        self.dist_warn.config(
+            text="X_test_distance 와 Y_test_distance 값이 서로 틀립니다!"
+            if self._pair_differs(self.xtest_var, self.ytest_var) else "")
+        warn = ""
+        try:
+            if float(self.speed_var.get()) > 12:
+                warn = "Search Speed 는 최대 12 까지만 입력할 수 있습니다!"
+        except ValueError:
+            pass
+        self.speed_warn.config(text=warn)
+
+    def _apply_test_params(self):
+        """모든 테스트 설정 값을 검증하고, 통과하면 저장 + 콘솔에 기록한다."""
+        try:
+            xs = float(self.xscope_var.get().strip())
+            ys = float(self.yscope_var.get().strip())
+            xd = float(self.xtest_var.get().strip())
+            yd = float(self.ytest_var.get().strip())
+            sp = float(self.speed_var.get().strip())
+        except ValueError:
+            messagebox.showerror(APP_NAME, "테스트 설정 값은 모두 숫자로 입력하세요.")
+            return
+        if xs != ys:
+            messagebox.showerror(
+                APP_NAME, "X_scope 와 Y_scope 값이 서로 틀립니다.\n"
+                          f"(X_scope={xs:g} mm, Y_scope={ys:g} mm)")
+            return
+        if xd != yd:
+            messagebox.showerror(
+                APP_NAME, "X_test_distance 와 Y_test_distance 값이 서로 틀립니다.\n"
+                          f"(X_test_distance={xd:g} mm, Y_test_distance={yd:g} mm)")
+            return
+        if sp <= 0:
+            messagebox.showerror(APP_NAME, "Search Speed 는 0 보다 커야 합니다.")
+            return
+        if sp > 12:
+            messagebox.showerror(APP_NAME,
+                                 f"Search Speed 는 최대 12 까지만 입력할 수 있습니다.\n"
+                                 f"(입력값: {sp:g})")
+            return
+        self.test_params = {"x_scope": xs, "y_scope": ys,
+                            "x_test_distance": xd, "y_test_distance": yd,
+                            "search_speed": sp}
+        self._append_console(
+            "action",
+            f"[설정] X/Y_scope={xs:g} mm, X/Y_test_distance={xd:g} mm, "
+            f"Search Speed={sp:g} 적용됨")
+
+    # ------------------------------- 메시지 콘솔 (UART / Command) 패널
     def _build_console(self, parent):
-        f = ttk.LabelFrame(parent, text=" UART 메시지 콘솔 ", padding=6)
+        f = ttk.LabelFrame(parent, text=" 메시지 콘솔 (UART / Command) ", padding=6)
         f.pack(fill="both", expand=True)
 
         self.console = scrolledtext.ScrolledText(
