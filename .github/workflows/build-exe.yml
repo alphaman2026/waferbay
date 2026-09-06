@@ -22,11 +22,23 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r FEEG_ESD_eSCOPE/requirements.txt pyinstaller
+        run: |
+          pip install -r FEEG_ESD_eSCOPE/requirements.txt pyinstaller
+          choco install upx -y --no-progress
 
       - name: Build FEEG_ESD_eSCOPE.exe
         working-directory: FEEG_ESD_eSCOPE
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name FEEG_ESD_eSCOPE FEEG_ESD_eSCOPE.py
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name FEEG_ESD_eSCOPE
+          --upx-dir "C:\ProgramData\chocolatey\bin"
+          --exclude-module IPython
+          --exclude-module pydoc
+          --exclude-module doctest
+          --exclude-module unittest
+          --exclude-module xmlrpc
+          --exclude-module sqlite3
+          FEEG_ESD_eSCOPE.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
