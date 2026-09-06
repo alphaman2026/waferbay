@@ -2,6 +2,12 @@ name: Build Windows EXE
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - claude/feeg-esd-escope-program-91yg4v
+    paths:
+      - "FEEG_ESD_eSCOPE/**"
+      - ".github/workflows/build-exe.yml"
 
 jobs:
   build:
