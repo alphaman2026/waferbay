@@ -32,7 +32,22 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed
           --name FEEG_ESD_eSCOPE
           --upx-dir "C:\ProgramData\chocolatey\bin"
+          --exclude-module pydoc
+          --exclude-module doctest
+          --exclude-module xmlrpc
+          --exclude-module sqlite3
+          --exclude-module lib2to3
+          --exclude-module ensurepip
           FEEG_ESD_eSCOPE.py
+
+      - name: Smoke test EXE
+        timeout-minutes: 5
+        working-directory: FEEG_ESD_eSCOPE
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\FEEG_ESD_eSCOPE.exe -ArgumentList "--selftest" -PassThru -Wait
+          Write-Host "selftest exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { exit 1 }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

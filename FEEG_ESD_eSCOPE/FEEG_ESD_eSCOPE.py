@@ -14,6 +14,7 @@ AD2 사용 시: Digilent WaveForms(SDK 포함) 설치 필요. 없으면 데모 �
 """
 
 import queue
+import sys
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 
@@ -360,5 +361,27 @@ class App(tk.Tk):
             self.destroy()
 
 
+def _selftest():
+    """--selftest: 데모 파형이 그려지는지 확인하고 종료 코드로 결과를 알린다.
+
+    배포용 EXE 가 실제로 뜨고 그래프까지 그려지는지 CI(빌드 서버)에서
+    자동 검증하는 용도. 성공 시 0, 실패 시 1 로 종료한다.
+    """
+    app = App()
+    app.demo_var.set(True)
+    app._toggle_scope()
+    result = {"ok": False}
+
+    def check():
+        result["ok"] = len(app.line.get_xdata()) > 0
+        app._on_close()
+
+    app.after(3000, check)
+    app.mainloop()
+    sys.exit(0 if result["ok"] else 1)
+
+
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        _selftest()
     App().mainloop()
