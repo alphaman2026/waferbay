@@ -32,12 +32,6 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed
           --name FEEG_ESD_eSCOPE
           --upx-dir "C:\ProgramData\chocolatey\bin"
-          --exclude-module IPython
-          --exclude-module pydoc
-          --exclude-module doctest
-          --exclude-module unittest
-          --exclude-module xmlrpc
-          --exclude-module sqlite3
           FEEG_ESD_eSCOPE.py
 
       - name: Upload artifact
