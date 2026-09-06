@@ -175,6 +175,14 @@ G90                ; 절대 좌표 모드 복귀</pre></li>
         <span style="color:#00008B">파란색(&gt;&gt;)</span>은 PC→보드 송신,
         <span style="color:#006400">녹색(&lt;&lt;)</span>은 보드→PC 수신,
         빨간색은 오류, 회색은 프로그램 안내 메시지입니다.</li>
+    <li><span style="color:#7B1FA2"><b>보라색 [동작]</b></span> 줄은 PC 에서 수행한
+        모터 제어 행위의 설명입니다. 조그 버튼·홈·모터 해제·위치 확인을 누를 때마다
+        "무엇을 했는지"가 G-code 와 함께 기록됩니다. 예:
+<pre>[동작] X축 +1 mm 이동 (이송속도 1200 mm/min)
+&gt;&gt; G91
+&gt;&gt; G0 X1 F1200
+&gt;&gt; G90
+&lt;&lt; ok</pre></li>
     <li>아래 입력창에 임의의 G-code (예: <code>M115</code>, <code>M503</code>)를 입력하고
         <span class="kbd">Enter</span> 또는 <b>전송</b> 버튼으로 보낼 수 있습니다.</li>
     <li><b>지우기</b> 버튼으로 콘솔을 비웁니다. 콘솔은 2000줄을 넘으면 오래된 줄부터

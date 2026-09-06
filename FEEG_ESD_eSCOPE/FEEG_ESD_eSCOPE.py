@@ -191,6 +191,8 @@ class App(tk.Tk):
         self.console.tag_config("tx", foreground="#00008B")     # 송신: 파랑
         self.console.tag_config("error", foreground="#B00000")  # 오류: 빨강
         self.console.tag_config("info", foreground="#555555")   # 정보: 회색
+        self.console.tag_config("action", foreground="#7B1FA2",  # PC 제어 행위: 보라 굵게
+                                font=("Consolas", 9, "bold"))
 
         ef = ttk.Frame(f)
         ef.pack(fill="x", pady=(4, 0))

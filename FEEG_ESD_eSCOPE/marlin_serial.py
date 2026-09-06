@@ -105,6 +105,10 @@ class MarlinSerial:
         self.rx_queue.put(("tx", line))
         return True
 
+    def _log_action(self, text):
+        """PC 에서 수행한 제어 행위를 콘솔에 표시하기 위한 안내 메시지."""
+        self.rx_queue.put(("action", text))
+
     # ------------------------------------------------------- 모터 제어 명령
     def jog(self, axis, distance_mm, feedrate_mm_min=1200):
         """
@@ -116,6 +120,11 @@ class MarlinSerial:
         axis = axis.upper()
         if axis not in ("X", "Y", "Z"):
             raise ValueError("axis 는 X, Y, Z 중 하나여야 합니다.")
+        if self.is_connected:
+            direction = "+" if distance_mm >= 0 else "−"
+            self._log_action(
+                f"[동작] {axis}축 {direction}{abs(distance_mm):g} mm 이동"
+                f" (이송속도 {feedrate_mm_min} mm/min)")
         ok = self.send_gcode("G91")                                   # 상대 좌표 모드
         ok &= self.send_gcode(f"G0 {axis}{distance_mm:g} F{feedrate_mm_min:d}")
         ok &= self.send_gcode("G90")                                  # 절대 좌표 복귀
@@ -124,12 +133,19 @@ class MarlinSerial:
     def home(self, axes=""):
         """홈 이동. axes 가 빈 문자열이면 전체(G28), 'X' 등이면 해당 축만."""
         cmd = "G28" if not axes else "G28 " + " ".join(a.upper() for a in axes)
+        if self.is_connected:
+            target = "전체 축" if not axes else "/".join(a.upper() for a in axes) + "축"
+            self._log_action(f"[동작] {target} 홈 이동 시작")
         return self.send_gcode(cmd)
 
     def disable_steppers(self):
         """모든 스테퍼 모터 전원 해제(M84). 손으로 축을 움직일 때 사용."""
+        if self.is_connected:
+            self._log_action("[동작] 모든 스테퍼 모터 전원 해제")
         return self.send_gcode("M84")
 
     def get_position(self):
         """현재 위치 보고 요청(M114). 결과는 수신 콘솔에 표시된다."""
+        if self.is_connected:
+            self._log_action("[동작] 현재 위치 확인 요청")
         return self.send_gcode("M114")

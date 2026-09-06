@@ -129,8 +129,16 @@ self.rx_queue.put(("tx", line))       # 송신 에코 → 콘솔에 파란색 �
   <code>ok</code> 응답을 보냅니다. 송신 내용도 큐에 넣어 콘솔에서 송/수신을
   한 흐름으로 볼 수 있게 했습니다.</p>
 
+  <h4>_log_action(text) — PC 제어 행위 로그</h4>
+  <pre>self.rx_queue.put(("action", text))</pre>
+  <p>조그·홈·모터 해제·위치 확인 등 <b>PC 에서 수행한 제어 행위</b>를
+  사람이 읽을 수 있는 설명("[동작] X축 +1 mm 이동" 등)으로 콘솔에 남긴다.
+  각 제어 메서드가 G-code 전송 직전에 호출하며, 연결된 상태에서만 기록한다.
+  GUI 는 <code>action</code> 태그(보라색 굵은 글씨)로 표시한다.</p>
+
   <h4>jog(axis, distance_mm, feedrate_mm_min=1200) — 핵심 모터 제어</h4>
-  <pre>self.send_gcode("G91")                                  # ① 상대 좌표 모드
+  <pre>self._log_action(f"[동작] {axis}축 ±{...}mm 이동 (이송속도 ...)")  # 행위 설명
+self.send_gcode("G91")                                  # ① 상대 좌표 모드
 self.send_gcode(f"G0 {axis}{distance_mm:g} F{feedrate}") # ② 해당 축 이동
 self.send_gcode("G90")                                  # ③ 절대 좌표 모드 복귀</pre>
   <table>
