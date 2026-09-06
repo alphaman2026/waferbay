@@ -1,0 +1,41 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r FEEG_ESD_eSCOPE/requirements.txt pyinstaller
+
+      - name: Build FEEG_ESD_eSCOPE.exe
+        working-directory: FEEG_ESD_eSCOPE
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name FEEG_ESD_eSCOPE FEEG_ESD_eSCOPE.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FEEG_ESD_eSCOPE-windows
+          path: FEEG_ESD_eSCOPE/dist/FEEG_ESD_eSCOPE.exe
+
+      - name: Commit EXE to release folder
+        shell: bash
+        run: |
+          mkdir -p release
+          cp FEEG_ESD_eSCOPE/dist/FEEG_ESD_eSCOPE.exe release/
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add release/FEEG_ESD_eSCOPE.exe
+          git commit -m "Add built Windows EXE [skip ci]" || exit 0
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
