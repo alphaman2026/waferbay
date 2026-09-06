@@ -38,6 +38,12 @@ jobs:
           --exclude-module sqlite3
           --exclude-module lib2to3
           --exclude-module ensurepip
+          --exclude-module email
+          --exclude-module http
+          --exclude-module test
+          --exclude-module curses
+          --exclude-module tkinter.test
+          --exclude-module pickletools
           FEEG_ESD_eSCOPE.py
 
       - name: Smoke test EXE
