@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FEEG_ESD_eSCOPE 코드 설명서</title>
+<style>
+  :root { --accent:#6b3fa0; --bg:#f7f8fa; --card:#ffffff; --line:#dde2e8; }
+  body { font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+         margin:0; background:var(--bg); color:#222; line-height:1.7; }
+  header { background:var(--accent); color:#fff; padding:28px 40px; }
+  header h1 { margin:0 0 4px; font-size:26px; }
+  header p { margin:0; opacity:.85; }
+  main { max-width:980px; margin:24px auto; padding:0 20px 60px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:8px;
+            padding:20px 28px; margin-bottom:20px; }
+  h2 { color:var(--accent); border-bottom:2px solid var(--line);
+       padding-bottom:6px; margin-top:0; }
+  h3 { color:#333; margin-bottom:6px; }
+  h4 { margin:16px 0 4px; color:#444; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; }
+  th,td { border:1px solid var(--line); padding:7px 10px; text-align:left; font-size:14px; }
+  th { background:#f0ebf7; }
+  code, pre { font-family:Consolas,"D2Coding",monospace; background:#f0f2f5;
+              border-radius:4px; font-size:13px; }
+  code { padding:1px 5px; }
+  pre { padding:12px 16px; overflow-x:auto; border:1px solid var(--line); line-height:1.5; }
+  .note { background:#eef4fb; border-left:4px solid #0b5394; padding:10px 14px;
+          border-radius:4px; margin:10px 0; }
+  footer { text-align:center; color:#888; font-size:13px; padding:20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FEEG_ESD_eSCOPE 코드 설명서</h1>
+  <p>개발자를 위한 소스 코드 상세 문서 &nbsp;|&nbsp; v1.0.0 &nbsp;|&nbsp; Python 3.9+ / Tkinter</p>
+</header>
+<main>
+
+<section>
+  <h2>1. 전체 아키텍처</h2>
+  <h3>1-1. 파일 구성</h3>
+  <table>
+    <tr><th>파일</th><th>역할</th></tr>
+    <tr><td><code>FEEG_ESD_eSCOPE.py</code></td>
+        <td>메인 프로그램. Tkinter GUI 전체(<code>App</code> 클래스)와 주기 폴링 루프.</td></tr>
+    <tr><td><code>marlin_serial.py</code></td>
+        <td>Marlin 보드 USB 시리얼 통신(<code>MarlinSerial</code> 클래스). GUI 비의존.</td></tr>
+    <tr><td><code>ad2_scope.py</code></td>
+        <td>Analog Discovery 2 제어(<code>AD2Scope</code> 클래스). WaveForms SDK 를
+            <code>ctypes</code> 로 직접 호출. GUI 비의존.</td></tr>
+    <tr><td><code>requirements.txt</code></td><td>의존 패키지 목록 (pyserial, matplotlib)</td></tr>
+  </table>
+
+  <h3>1-2. 스레드 / 데이터 흐름</h3>
+  <pre>
+        [GUI 메인 스레드 (Tkinter)]
+        │  after(100ms) ── rx_queue 폴링 ──→ UART 콘솔 표시
+        │  after(50ms)  ── data_queue 폴링 ─→ matplotlib 파형 갱신
+        │  after(2s)    ── FDwfEnum 폴링 ──→ AD2 연결 상태등 갱신
+        │
+  ┌─────┴──────────────┐        ┌────────────────────────┐
+  │ 수신 스레드          │        │ 획득 스레드              │
+  │ MarlinSerial._rx_loop│       │ AD2Scope._acq_loop      │
+  │ serial.read() 반복   │        │ 단발 획득 반복           │
+  │  → rx_queue.put()   │        │  → data_queue.put()     │
+  └─────────────────────┘        └────────────────────────┘</pre>
+  <div class="note"><b>설계 원칙</b> — Tkinter 위젯은 메인 스레드에서만 조작해야 하므로,
+  백그라운드 스레드는 절대 GUI 를 직접 건드리지 않고 <b><code>queue.Queue</code></b> 에만
+  데이터를 넣습니다. GUI 는 <code>root.after()</code> 타이머로 큐를 폴링하여 화면을
+  갱신합니다. 이 구조 덕분에 시리얼 지연이나 AD2 획득 시간이 UI 를 멈추게 하지 않습니다.</div>
+</section>
+
+<section>
+  <h2>2. marlin_serial.py — Marlin 시리얼 통신</h2>
+
+  <h3>2-1. 모듈 상수 / 함수</h3>
+  <table>
+    <tr><th>이름</th><th>설명</th></tr>
+    <tr><td><code>BAUD_RATES</code></td><td>GUI 콤보박스에 표시할 보레이트 목록. 첫 항목 115200 이 Marlin 기본값.</td></tr>
+    <tr><td><code>DEFAULT_BAUD = 115200</code></td><td>SKR mini E3 출하 펌웨어 기본 통신 속도.</td></tr>
+    <tr><td><code>list_serial_ports()</code></td>
+        <td><code>serial.tools.list_ports.comports()</code> 결과에서 포트 이름
+            (<code>COM3</code>, <code>/dev/ttyACM0</code> …)만 추출해 반환.</td></tr>
+  </table>
+
+  <h3>2-2. class MarlinSerial</h3>
+  <h4>내부 상태</h4>
+  <pre>self._ser       # serial.Serial 인스턴스 (미연결 시 None)
+self._rx_thread # 수신 스레드 (daemon)
+self._running   # 수신 루프 계속 여부 플래그
+self.rx_queue   # (종류, 문자열) 튜플 큐 — 종류: "rx"|"tx"|"info"|"error"</pre>
+
+  <h4>connect(port, baud)</h4>
+  <pre>self._ser = serial.Serial(port=port, baudrate=baud, timeout=0.1)
+self._running = True
+self._rx_thread = threading.Thread(target=self._rx_loop, daemon=True)
+self._rx_thread.start()</pre>
+  <ul>
+    <li><code>timeout=0.1</code> — <code>read()</code> 가 최대 0.1초만 블록하므로
+        <code>_running=False</code> 설정 후 스레드가 빠르게 종료됩니다.</li>
+    <li>연결 시 USB DTR 신호로 보드가 리셋되어 Marlin 부팅 메시지가 수신됩니다(정상).</li>
+  </ul>
+
+  <h4>_rx_loop() — 수신 스레드 본체</h4>
+  <pre>buf = b""
+while self._running:
+    data = self._ser.read(256)        # 최대 0.1초 대기
+    if data:
+        buf += data
+        while b"\n" in buf:           # 개행 단위로 라인 분리
+            line, buf = buf.split(b"\n", 1)
+            text = line.decode("utf-8", errors="replace").rstrip("\r")
+            if text:
+                self.rx_queue.put(("rx", text))</pre>
+  <ul>
+    <li>바이트 스트림을 버퍼에 누적하다가 <code>\n</code> 이 나올 때마다 한 줄씩 잘라
+        큐에 넣는 전형적인 라인 프레이밍 방식입니다.</li>
+    <li><code>errors="replace"</code> — 보레이트 불일치 등으로 깨진 바이트가 와도
+        예외 없이 � 로 치환해 표시합니다.</li>
+    <li><code>SerialException</code> 발생(케이블 분리 등) 시 <code>("error", …)</code> 를
+        큐에 넣고 루프를 종료 — GUI 가 이를 보고 연결 상태를 "연결 안 됨"으로 되돌립니다.</li>
+  </ul>
+
+  <h4>send_gcode(gcode)</h4>
+  <pre>self._ser.write((line + "\n").encode("ascii", errors="replace"))
+self.rx_queue.put(("tx", line))       # 송신 에코 → 콘솔에 파란색 표시</pre>
+  <p>Marlin 은 개행(<code>\n</code>)으로 명령 끝을 인식하며, 처리 후
+  <code>ok</code> 응답을 보냅니다. 송신 내용도 큐에 넣어 콘솔에서 송/수신을
+  한 흐름으로 볼 수 있게 했습니다.</p>
+
+  <h4>jog(axis, distance_mm, feedrate_mm_min=1200) — 핵심 모터 제어</h4>
+  <pre>self.send_gcode("G91")                                  # ① 상대 좌표 모드
+self.send_gcode(f"G0 {axis}{distance_mm:g} F{feedrate}") # ② 해당 축 이동
+self.send_gcode("G90")                                  # ③ 절대 좌표 모드 복귀</pre>
+  <table>
+    <tr><th>단계</th><th>이유</th></tr>
+    <tr><td>① <code>G91</code></td>
+        <td>"현재 위치에서 ±거리" 로 해석되게 함. 조그 버튼의 의미와 일치.</td></tr>
+    <tr><td>② <code>G0 X1 F1200</code></td>
+        <td><code>{distance_mm:g}</code> 포맷은 1.0→"1", 0.1→"0.1" 로 깔끔하게 출력.
+            F1200 = 20 mm/s 의 안전한 이송 속도.</td></tr>
+    <tr><td>③ <code>G90</code></td>
+        <td>다른 프로그램/명령이 절대 좌표를 가정하므로 반드시 원상 복구.</td></tr>
+  </table>
+
+  <h4>기타 명령 래퍼</h4>
+  <table>
+    <tr><th>메서드</th><th>G-code</th><th>설명</th></tr>
+    <tr><td><code>home(axes="")</code></td><td><code>G28</code> / <code>G28 X Y</code></td>
+        <td>빈 문자열이면 전체 홈, "XY" 처럼 축 문자를 주면 해당 축만.</td></tr>
+    <tr><td><code>disable_steppers()</code></td><td><code>M84</code></td><td>모터 전원 해제.</td></tr>
+    <tr><td><code>get_position()</code></td><td><code>M114</code></td><td>현재 좌표 보고 요청.</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>3. ad2_scope.py — Analog Discovery 2 제어</h2>
+
+  <h3>3-1. SDK 로드 (_load_dwf)</h3>
+  <pre>if sys.platform.startswith("win"):
+    _dwf = ctypes.cdll.dwf                        # Windows: dwf.dll
+elif sys.platform == "darwin":
+    _dwf = ctypes.cdll.LoadLibrary("/Library/Frameworks/dwf.framework/dwf")
+else:
+    _dwf = ctypes.cdll.LoadLibrary("libdwf.so")   # Linux</pre>
+  <ul>
+    <li>WaveForms SDK 는 C 라이브러리이므로 <code>ctypes</code> 로 직접 바인딩합니다
+        (별도 pip 패키지 불필요).</li>
+    <li>로드 실패 시 예외를 삼키고 <code>None</code> 을 반환 — SDK 가 없는 PC 에서도
+        프로그램 전체는 정상 실행되고, GUI 는 "SDK 미설치" 상태만 표시합니다.</li>
+    <li><code>sdk_available()</code> / <code>device_count()</code> 는 모듈 레벨 함수로,
+        GUI 의 연결 감지 폴링에 사용됩니다. <code>FDwfEnum(0, &amp;n)</code> 은 장치를
+        열지 않고 개수만 세므로 주기 호출에 안전합니다.</li>
+  </ul>
+
+  <h3>3-2. class AD2Scope</h3>
+  <h4>open(demo=False)</h4>
+  <pre>dwf.FDwfDeviceOpen(ctypes.c_int(-1), ctypes.byref(self._hdwf))
+if self._hdwf.value == 0:            # hdwfNone = 열기 실패
+    dwf.FDwfGetLastErrorMsg(err)
+    raise RuntimeError(...)</pre>
+  <ul>
+    <li>인덱스 <code>-1</code> = "첫 번째 사용 가능한 장치 자동 선택".</li>
+    <li>다른 프로그램(WaveForms 앱 등)이 장치를 점유 중이면 핸들이 0 으로 반환되며,
+        SDK 의 마지막 오류 메시지를 읽어 예외로 올립니다.</li>
+    <li><code>demo=True</code> 면 하드웨어를 전혀 건드리지 않고 플래그만 세웁니다.</li>
+  </ul>
+
+  <h4>start(sample_rate, n_samples, ch_range) → _acq_loop()</h4>
+  <p>획득 스레드가 시작될 때 한 번 수행하는 스코프 설정:</p>
+  <pre>FDwfAnalogInFrequencySet(hdwf, sample_rate)   # 샘플링 주파수 [Hz]
+FDwfAnalogInBufferSizeSet(hdwf, n_samples)    # 획득 버퍼 크기 (최대 8192)
+FDwfAnalogInChannelEnableSet(hdwf, 0, 1)      # CH1(index 0) 활성화
+FDwfAnalogInChannelRangeSet(hdwf, 0, ch_range)# 전압 범위 (5V 또는 50V)
+time.sleep(0.1)                               # 아날로그 프론트엔드 안정화</pre>
+  <p>이후 무한 반복하는 <b>단발(Single) 획득 루프</b>:</p>
+  <pre>while self._running:
+    FDwfAnalogInConfigure(hdwf, 0, 1)         # 획득 1회 시작
+    while ...:                                # 완료 폴링
+        FDwfAnalogInStatus(hdwf, 1, &amp;sts)
+        if sts == DwfStateDone: break         # DwfStateDone = 2
+    FDwfAnalogInStatusData(hdwf, 0, buf, n)   # 전압 배열 읽기 [V]
+    self._push(1.0/sample_rate, list(buf))    # (샘플주기, 데이터) 전달
+    time.sleep(0.03)                          # 화면 갱신 ~20-30fps 제한</pre>
+  <div class="note">연속(Record) 모드 대신 단발 획득을 반복하는 이유 —
+  오실로스코프처럼 "한 화면 분량(샘플 수 ÷ 샘플레이트)의 파형"을 통째로 받아
+  그리는 것이 목적이므로 구현이 단순하고 프레임 간 데이터 유실 걱정이 없습니다.</div>
+
+  <h4>_push(dt, data) — 프레임 드롭 정책</h4>
+  <pre>try:
+    self.data_queue.put_nowait((dt, data))
+except queue.Full:          # GUI 가 못 따라오면
+    self.data_queue.get_nowait()   # 가장 오래된 프레임을 버리고
+    self.data_queue.put_nowait((dt, data))  # 최신 프레임을 넣는다</pre>
+  <p>큐 크기를 4로 제한하고 가득 차면 오래된 것을 버립니다. 화면에는 항상
+  최신 파형이 표시되고 메모리가 누적되지 않습니다.</p>
+
+  <h4>_demo_loop() — 데모 모드</h4>
+  <p>1 kHz 사인파(진폭 2 V) + 가우시안 잡음(σ=0.05 V)을 <code>math.sin</code> 으로
+  합성해 실제 획득과 같은 형식으로 큐에 넣습니다. <code>phase</code> 를 누적시켜
+  프레임마다 파형이 이어지도록 했습니다.</p>
+</section>
+
+<section>
+  <h2>4. FEEG_ESD_eSCOPE.py — 메인 GUI</h2>
+
+  <h3>4-1. class App(tk.Tk) 초기화</h3>
+  <pre>self.marlin = marlin_serial.MarlinSerial()
+self.scope  = ad2_scope.AD2Scope()
+self._build_ui()
+self.after(100, self._poll_marlin_rx)     # UART 콘솔 갱신 루프
+self.after(50,  self._poll_scope_data)    # 파형 갱신 루프
+self.after(500, self._poll_ad2_presence)  # AD2 감지 루프
+self.protocol("WM_DELETE_WINDOW", self._on_close)</pre>
+  <p>레이아웃은 <code>grid</code> 2열 구조 — 왼쪽(고정폭): Marlin 연결·조그·콘솔,
+  오른쪽(신축): AD2 설정 + matplotlib 캔버스.</p>
+
+  <h3>4-2. Marlin 연결 UI (_build_marlin_conn / _toggle_marlin)</h3>
+  <ul>
+    <li>포트 콤보박스는 <code>list_serial_ports()</code> 결과로 채우며,
+        <b>새로고침</b> 버튼이 <code>_refresh_ports()</code> 를 다시 호출합니다.</li>
+    <li><code>_toggle_marlin()</code> 은 연결/해제를 한 버튼으로 토글하고,
+        상태 라벨을 <span style="color:green">● 연결됨</span> /
+        <span style="color:red">● 연결 안 됨</span> 으로 갱신합니다.</li>
+  </ul>
+
+  <h3>4-3. 조그 패드 (_build_jog / _jog)</h3>
+  <pre>self.step_var = tk.StringVar(value="1")   # 기본 1mm
+...
+def _jog(self, axis, sign):
+    step = float(self.step_var.get())
+    self.marlin.jog(axis, sign * step)</pre>
+  <ul>
+    <li>이동 거리는 라디오버튼(0.1 / 1 / 10 mm)으로 선택하며 기본값은 <b>1 mm</b>.</li>
+    <li>버튼 배치는 십자형(X/Y) + 우측 세로(Z) 로, 각 버튼은
+        <code>lambda: self._jog(axis, ±1)</code> 콜백을 가집니다.</li>
+    <li>홈/모터해제/위치확인 버튼은 <code>MarlinSerial</code> 의 래퍼 메서드를 직접 호출.</li>
+  </ul>
+
+  <h3>4-4. UART 콘솔 (_build_console / _poll_marlin_rx / _append_console)</h3>
+  <ul>
+    <li><code>ScrolledText</code> 를 <code>state="disabled"</code> 로 두어 사용자가
+        직접 수정하지 못하게 하고, 추가할 때만 잠시 <code>normal</code> 로 바꿉니다.</li>
+    <li>메시지 종류별 태그 색상: <code>rx</code>=녹색, <code>tx</code>=파랑,
+        <code>error</code>=빨강, <code>info</code>=회색. 접두어 <code>&gt;&gt;</code>(송신) /
+        <code>&lt;&lt;</code>(수신)를 붙입니다.</li>
+    <li><code>_poll_marlin_rx()</code> 는 100 ms 마다 <code>rx_queue</code> 를 모두 비우고,
+        <code>error</code> 수신 + 연결 끊김이면 연결 버튼/상태를 자동 복구합니다.</li>
+    <li>2000줄 초과 시 앞 200줄을 삭제해 장시간 사용 시 메모리를 보호합니다.</li>
+  </ul>
+
+  <h3>4-5. AD2 패널 (_build_ad2_panel 등)</h3>
+  <h4>연결 상태등 — _poll_ad2_presence()</h4>
+  <pre>if self.scope.is_open:            # 측정 중이면 항상 녹색 유지
+    self._set_lamp(True, "AD2 연결됨 (사용 중)")
+elif not ad2_scope.sdk_available():
+    self._set_lamp(False, "WaveForms SDK 미설치 — 데모 모드만 사용 가능")
+elif ad2_scope.device_count() > 0:
+    self._set_lamp(True, "AD2 연결됨")
+else:
+    self._set_lamp(False, "AD2 연결 안 됨")
+self.after(2000, self._poll_ad2_presence)   # 2초 주기 재등록</pre>
+  <p>상태등은 <code>tk.Canvas</code> 의 원(oval) 색상을 녹색/빨강으로 바꾸는
+  방식입니다. 측정 중에는 <code>FDwfEnum</code> 을 부르지 않도록
+  <code>is_open</code> 분기를 먼저 둡니다.</p>
+
+  <h4>측정 시작/정지 — _toggle_scope()</h4>
+  <ol>
+    <li>데모 모드가 아니면 SDK 존재 → 장치 존재 순으로 검사하고, 문제가 있으면
+        경고 대화상자를 띄웁니다.</li>
+    <li><code>scope.open(demo)</code> → <code>scope.start(rate, n, range)</code> 로
+        획득 스레드를 시작하고 버튼 텍스트를 "측정 정지"로 바꿉니다.</li>
+    <li>정지 시 <code>stop()</code>(스레드 join) → <code>close()</code>(장치 해제) 순서.</li>
+  </ol>
+
+  <h4>파형 그리기 — _poll_scope_data()</h4>
+  <pre>while True:                       # 큐를 다 비워 "최신 프레임"만 취한다
+    frame = self.scope.data_queue.get_nowait()
+...
+t_ms = [i * dt * 1e3 for i in range(n)]   # X축: 시간[ms]
+self.line.set_data(t_ms, volts)           # Y축: 전압[V]
+self.ax.set_xlim(0, t_ms[-1])
+self.ax.set_ylim(-rng/2*1.1, rng/2*1.1)   # 범위의 ±55% 로 여유
+self.canvas.draw_idle()</pre>
+  <ul>
+    <li>매 프레임 <code>plot()</code> 을 새로 만들지 않고, 초기화 때 만든 Line2D 객체의
+        데이터만 교체(<code>set_data</code>)하여 렌더링 비용을 줄입니다.</li>
+    <li><code>draw_idle()</code> 은 Tk 이벤트 루프가 한가할 때 다시 그리므로
+        고빈도 호출에도 UI 가 매끄럽습니다.</li>
+  </ul>
+
+  <h3>4-6. 종료 처리 — _on_close()</h3>
+  <pre>self.scope.stop(); self.scope.close()   # 획득 스레드 정지 + AD2 해제
+self.marlin.disconnect()                # 수신 스레드 정지 + 포트 닫기
+self.destroy()</pre>
+  <p>창을 닫을 때 백그라운드 스레드와 하드웨어 핸들을 반드시 정리해,
+  다음 실행 시 "장치 점유" 오류가 나지 않도록 합니다.</p>
+</section>
+
+<section>
+  <h2>5. 확장 가이드</h2>
+  <table>
+    <tr><th>하고 싶은 것</th><th>수정 위치</th></tr>
+    <tr><td>이동 거리 선택지 추가 (예: 50 mm)</td>
+        <td><code>FEEG_ESD_eSCOPE.py</code> 의 <code>STEP_SIZES</code> 리스트에 항목 추가.</td></tr>
+    <tr><td>이송 속도 변경</td>
+        <td><code>marlin_serial.py</code> <code>jog()</code> 의
+            <code>feedrate_mm_min</code> 기본값 수정, 또는 GUI 에 입력란 추가 후 인자로 전달.</td></tr>
+    <tr><td>CH2 파형 추가</td>
+        <td><code>ad2_scope.py</code> <code>_acq_loop()</code> 에서 채널 1(index 1)도
+            enable/range 설정 후 <code>FDwfAnalogInStatusData(hdwf, 1, …)</code> 로 읽고,
+            큐 튜플에 두 배열을 담아 GUI 에서 Line2D 를 하나 더 그림.</td></tr>
+    <tr><td>트리거 기능</td>
+        <td><code>_acq_loop()</code> 설정부에 <code>FDwfAnalogInTriggerSourceSet</code>,
+            <code>FDwfAnalogInTriggerLevelSet</code> 등 SDK 트리거 API 추가.</td></tr>
+    <tr><td>파형 CSV 저장</td>
+        <td><code>App._poll_scope_data()</code> 에서 마지막 프레임을 멤버에 보관하고
+            저장 버튼에서 <code>csv</code> 모듈로 기록.</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>6. 참고 자료</h2>
+  <ul>
+    <li>Marlin G-code 레퍼런스 — <a href="https://marlinfw.org/meta/gcode/">marlinfw.org/meta/gcode</a></li>
+    <li>Digilent WaveForms SDK 매뉴얼 — WaveForms 설치 폴더의
+        <code>WaveForms SDK Reference Manual.pdf</code> 및 <code>samples/py</code> 예제</li>
+    <li>pyserial 문서 — <a href="https://pyserial.readthedocs.io/">pyserial.readthedocs.io</a></li>
+    <li>matplotlib Tk 임베딩 — <a href="https://matplotlib.org/stable/gallery/user_interfaces/embedding_in_tk_sgskip.html">embedding_in_tk 예제</a></li>
+  </ul>
+</section>
+
+</main>
+<footer>FEEG_ESD_eSCOPE v1.0.0 — 코드 설명서</footer>
+</body>
+</html>
