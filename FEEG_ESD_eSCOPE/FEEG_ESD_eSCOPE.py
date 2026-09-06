@@ -31,7 +31,6 @@ APP_VERSION = "1.0.0"
 SAMPLE_RATES = ["1000", "10000", "100000", "1000000", "10000000"]   # Hz
 SAMPLE_COUNTS = ["512", "1024", "2048", "4096", "8192"]
 CH_RANGES = ["5", "50"]        # V (AD2 는 저/고 감쇠 2단)
-STEP_SIZES = ["0.1", "1", "10"]  # mm (기본 1mm)
 
 
 class App(tk.Tk):
@@ -132,14 +131,14 @@ class App(tk.Tk):
         f = ttk.LabelFrame(parent, text=" 스테퍼 모터 제어 (X / Y / Z) ", padding=6)
         f.pack(fill="x", pady=(0, 6))
 
-        # 이동 거리 선택 (기본 1mm)
+        # 이동 거리 입력 (mm 단위, 기본 1mm) — 사용자가 원하는 값을 직접 입력
         sf = ttk.Frame(f)
         sf.pack(fill="x")
         ttk.Label(sf, text="이동 거리:").pack(side="left")
         self.step_var = tk.StringVar(value="1")
-        for s in STEP_SIZES:
-            ttk.Radiobutton(sf, text=f"{s} mm", value=s,
-                            variable=self.step_var).pack(side="left", padx=4)
+        ttk.Entry(sf, textvariable=self.step_var, width=8,
+                  justify="right").pack(side="left", padx=(4, 2))
+        ttk.Label(sf, text="mm").pack(side="left")
 
         # 조그 버튼 패드
         pad = ttk.Frame(f)
@@ -176,7 +175,14 @@ class App(tk.Tk):
                    command=self.marlin.get_position).pack(side="left", padx=2)
 
     def _jog(self, axis, sign):
-        step = float(self.step_var.get())
+        try:
+            step = float(self.step_var.get().strip())
+        except ValueError:
+            messagebox.showwarning(APP_NAME, "이동 거리는 숫자로 입력하세요. (mm 단위)")
+            return
+        if step <= 0:
+            messagebox.showwarning(APP_NAME, "이동 거리는 0 보다 큰 값이어야 합니다.")
+            return
         self.marlin.jog(axis, sign * step)
 
     # ------------------------------------------------- UART 콘솔 패널

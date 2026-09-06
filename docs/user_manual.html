@@ -113,7 +113,7 @@ python FEEG_ESD_eSCOPE.py</pre>
 │   포트 / Baud / 연결 버튼      │   ● 연결 상태등  샘플레이트/샘플수/범위│
 │                               │   [측정 시작] 버튼                    │
 │ [스테퍼 모터 제어 (X/Y/Z)]     ├──────────────────────────────────────┤
-│   이동거리 0.1 / 1 / 10 mm    │                                      │
+│   이동거리 [___] mm 직접 입력  │                                      │
 │        [Y+]        [Z+]       │        전압 파형 그래프               │
 │   [X−]      [X+]              │        (X축: Time[ms],               │
 │        [Y−]        [Z−]       │         Y축: Voltage[V])             │
@@ -145,7 +145,9 @@ python FEEG_ESD_eSCOPE.py</pre>
   <h2>5. 스테퍼 모터 제어</h2>
   <h3>5-1. 조그 이동</h3>
   <ul>
-    <li><b>이동 거리</b>에서 0.1 / 1 / 10&nbsp;mm 를 선택합니다. 기본값은 <b>1&nbsp;mm</b> 입니다.</li>
+    <li><b>이동 거리</b> 입력란에 원하는 값을 <b>mm 단위로 직접 입력</b>합니다.
+        기본값은 <b>1&nbsp;mm</b> 이며, 0.05, 2.5, 25 처럼 소수점 값도 가능합니다.
+        숫자가 아니거나 0 이하인 값은 경고와 함께 무시됩니다.</li>
     <li><span class="kbd">X+</span> <span class="kbd">X−</span>
         <span class="kbd">Y+</span> <span class="kbd">Y−</span>
         <span class="kbd">Z+</span> <span class="kbd">Z−</span>

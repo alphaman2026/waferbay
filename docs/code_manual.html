@@ -254,13 +254,19 @@ self.protocol("WM_DELETE_WINDOW", self._on_close)</pre>
   </ul>
 
   <h3>4-3. 조그 패드 (_build_jog / _jog)</h3>
-  <pre>self.step_var = tk.StringVar(value="1")   # 기본 1mm
+  <pre>self.step_var = tk.StringVar(value="1")   # 기본 1mm, Entry 로 자유 입력
 ...
 def _jog(self, axis, sign):
-    step = float(self.step_var.get())
+    try:
+        step = float(self.step_var.get().strip())   # mm 단위 사용자 입력 파싱
+    except ValueError:
+        messagebox.showwarning(...); return          # 숫자가 아니면 경고
+    if step <= 0:
+        messagebox.showwarning(...); return          # 0 이하도 거부
     self.marlin.jog(axis, sign * step)</pre>
   <ul>
-    <li>이동 거리는 라디오버튼(0.1 / 1 / 10 mm)으로 선택하며 기본값은 <b>1 mm</b>.</li>
+    <li>이동 거리는 <b>Entry 입력란에 mm 단위로 자유 입력</b>하며 기본값은 <b>1 mm</b>.
+        소수점 값도 허용되고, 잘못된 입력은 경고 대화상자로 걸러진다.</li>
     <li>버튼 배치는 십자형(X/Y) + 우측 세로(Z) 로, 각 버튼은
         <code>lambda: self._jog(axis, ±1)</code> 콜백을 가집니다.</li>
     <li>홈/모터해제/위치확인 버튼은 <code>MarlinSerial</code> 의 래퍼 메서드를 직접 호출.</li>
