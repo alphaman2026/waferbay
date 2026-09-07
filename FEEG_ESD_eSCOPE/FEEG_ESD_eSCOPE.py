@@ -132,19 +132,19 @@ class App(tk.Tk):
         f = ttk.LabelFrame(parent, text=" 스테퍼 모터 제어 (X / Y / Z) ", padding=6)
         f.pack(fill="x", pady=(0, 6))
 
-        # 이동 거리 입력 (mm 단위) — X/Y 축과 Z 축을 분리해서 입력
+        # 이동 거리 입력 (mm 단위) — X/Y 축과 Z 축을 좌우로 나란히 배치
         sf = ttk.Frame(f)
         sf.pack(fill="x")
         ttk.Label(sf, text="X/Y 이동 거리:").grid(row=0, column=0, sticky="e")
         self.xy_step_var = tk.StringVar(value="1")          # 기본 1mm
-        ttk.Entry(sf, textvariable=self.xy_step_var, width=8,
+        ttk.Entry(sf, textvariable=self.xy_step_var, width=6,
                   justify="right").grid(row=0, column=1, padx=(4, 2))
-        ttk.Label(sf, text="mm").grid(row=0, column=2, sticky="w")
-        ttk.Label(sf, text="Z 이동 거리:").grid(row=1, column=0, sticky="e", pady=(2, 0))
+        ttk.Label(sf, text="mm").grid(row=0, column=2, sticky="w", padx=(0, 14))
+        ttk.Label(sf, text="Z 이동 거리:").grid(row=0, column=3, sticky="e")
         self.z_step_var = tk.StringVar(value="1")           # 기본 1mm
-        ttk.Entry(sf, textvariable=self.z_step_var, width=8,
-                  justify="right").grid(row=1, column=1, padx=(4, 2), pady=(2, 0))
-        ttk.Label(sf, text="mm (최대 10)").grid(row=1, column=2, sticky="w", pady=(2, 0))
+        ttk.Entry(sf, textvariable=self.z_step_var, width=6,
+                  justify="right").grid(row=0, column=4, padx=(4, 2))
+        ttk.Label(sf, text="mm (최대 10)").grid(row=0, column=5, sticky="w")
 
         # 조그 버튼 패드
         pad = ttk.Frame(f)
