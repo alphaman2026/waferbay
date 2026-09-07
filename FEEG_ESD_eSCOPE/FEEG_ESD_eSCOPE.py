@@ -132,14 +132,19 @@ class App(tk.Tk):
         f = ttk.LabelFrame(parent, text=" 스테퍼 모터 제어 (X / Y / Z) ", padding=6)
         f.pack(fill="x", pady=(0, 6))
 
-        # 이동 거리 입력 (mm 단위, 기본 1mm) — 사용자가 원하는 값을 직접 입력
+        # 이동 거리 입력 (mm 단위) — X/Y 축과 Z 축을 분리해서 입력
         sf = ttk.Frame(f)
         sf.pack(fill="x")
-        ttk.Label(sf, text="이동 거리:").pack(side="left")
-        self.step_var = tk.StringVar(value="1")
-        ttk.Entry(sf, textvariable=self.step_var, width=8,
-                  justify="right").pack(side="left", padx=(4, 2))
-        ttk.Label(sf, text="mm").pack(side="left")
+        ttk.Label(sf, text="X/Y 이동 거리:").grid(row=0, column=0, sticky="e")
+        self.xy_step_var = tk.StringVar(value="1")          # 기본 1mm
+        ttk.Entry(sf, textvariable=self.xy_step_var, width=8,
+                  justify="right").grid(row=0, column=1, padx=(4, 2))
+        ttk.Label(sf, text="mm").grid(row=0, column=2, sticky="w")
+        ttk.Label(sf, text="Z 이동 거리:").grid(row=1, column=0, sticky="e", pady=(2, 0))
+        self.z_step_var = tk.StringVar(value="1")           # 기본 1mm
+        ttk.Entry(sf, textvariable=self.z_step_var, width=8,
+                  justify="right").grid(row=1, column=1, padx=(4, 2), pady=(2, 0))
+        ttk.Label(sf, text="mm (최대 10)").grid(row=1, column=2, sticky="w", pady=(2, 0))
 
         # 조그 버튼 패드
         pad = ttk.Frame(f)
@@ -175,14 +180,26 @@ class App(tk.Tk):
         ttk.Button(hf2, text="위치 확인 (M114)", width=14,
                    command=self.marlin.get_position).pack(side="left", padx=2)
 
+    # Z축은 노즐/베드 충돌 위험이 있어 한 번에 최대 10mm 로 제한한다.
+    Z_STEP_MAX_MM = 10.0
+
     def _jog(self, axis, sign):
+        is_z = (axis == "Z")
+        var = self.z_step_var if is_z else self.xy_step_var
+        name = "Z 이동 거리" if is_z else "X/Y 이동 거리"
         try:
-            step = float(self.step_var.get().strip())
+            step = float(var.get().strip())
         except ValueError:
-            messagebox.showwarning(APP_NAME, "이동 거리는 숫자로 입력하세요. (mm 단위)")
+            messagebox.showwarning(APP_NAME, f"{name}는 숫자로 입력하세요. (mm 단위)")
             return
         if step <= 0:
-            messagebox.showwarning(APP_NAME, "이동 거리는 0 보다 큰 값이어야 합니다.")
+            messagebox.showwarning(APP_NAME, f"{name}는 0 보다 큰 값이어야 합니다.")
+            return
+        if is_z and step > self.Z_STEP_MAX_MM:
+            messagebox.showwarning(
+                APP_NAME,
+                f"Z 이동 거리는 최대 {self.Z_STEP_MAX_MM:g} mm 까지만 입력할 수 있습니다.\n"
+                f"(입력값: {step:g} mm)")
             return
         self.marlin.jog(axis, sign * step)
 
